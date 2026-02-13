@@ -83,9 +83,6 @@ export function AppShell({ user, loading }: AppShellProps) {
                 groupId={selectedGroupId}
                 currentUserId={user?.id ?? ""}
                 onBack={() => setSelectedGroupId(null)}
-                onAddExpense={() => {
-                  // Phase 3 will implement this
-                }}
               />
             ) : (
               <GroupList

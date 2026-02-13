@@ -1,11 +1,25 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getGroupById, addMemberByIdentifier, type GroupWithMembers } from "@/services/groups";
+import {
+  getGroupById,
+  addMemberByIdentifier,
+  type GroupWithMembers,
+} from "@/services/groups";
+import {
+  getExpensesForGroup,
+  calculateGroupBalances,
+  type ExpenseWithSplits,
+  type BalanceEntry,
+} from "@/services/expenses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ExpenseList } from "@/components/ExpenseList";
+import { BalanceDisplay } from "@/components/BalanceDisplay";
+import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import {
   ArrowLeft,
   Users,
@@ -13,6 +27,7 @@ import {
   Receipt,
   UserPlus,
   Loader2,
+  Scale,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,35 +35,51 @@ interface GroupDetailProps {
   groupId: string;
   currentUserId: string;
   onBack: () => void;
-  onAddExpense: () => void;
+  onSettleUp?: (balances: BalanceEntry[]) => void;
 }
 
 export function GroupDetail({
   groupId,
   currentUserId,
   onBack,
-  onAddExpense,
+  onSettleUp,
 }: GroupDetailProps) {
   const [group, setGroup] = useState<GroupWithMembers | null>(null);
+  const [expenses, setExpenses] = useState<ExpenseWithSplits[]>([]);
+  const [balances, setBalances] = useState<BalanceEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteInput, setInviteInput] = useState("");
   const [inviting, setInviting] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showAddExpense, setShowAddExpense] = useState(false);
 
-  const fetchGroup = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const data = await getGroupById(groupId);
-      setGroup(data);
+      const [groupData, expenseData] = await Promise.all([
+        getGroupById(groupId),
+        getExpensesForGroup(groupId),
+      ]);
+
+      setGroup(groupData);
+      setExpenses(expenseData);
+
+      if (groupData) {
+        const computedBalances = calculateGroupBalances(
+          expenseData,
+          groupData.members
+        );
+        setBalances(computedBalances);
+      }
     } catch (err) {
-      console.error("Failed to fetch group:", err);
+      console.error("Failed to fetch group data:", err);
     } finally {
       setLoading(false);
     }
   }, [groupId]);
 
   useEffect(() => {
-    fetchGroup();
-  }, [fetchGroup]);
+    fetchData();
+  }, [fetchData]);
 
   const handleInvite = async () => {
     const trimmed = inviteInput.trim();
@@ -59,18 +90,20 @@ export function GroupDetail({
       const { user, isNew } = await addMemberByIdentifier(groupId, trimmed);
       toast.success(
         isNew
-          ? `Invited ${trimmed} — they'll see the group when they sign up`
-          : `Added ${user.display_name ?? trimmed} to the group`
+          ? `Invited ${trimmed}`
+          : `Added ${user.display_name ?? trimmed}`
       );
       setInviteInput("");
       setShowInvite(false);
-      fetchGroup();
+      fetchData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to invite");
     } finally {
       setInviting(false);
     }
   };
+
+  const hasUnsettledDebts = balances.some((b) => b.amount !== 0);
 
   if (loading) {
     return (
@@ -106,25 +139,41 @@ export function GroupDetail({
         <div className="flex-1">
           <h2 className="text-lg font-semibold">{group.name}</h2>
           {group.description && (
-            <p className="text-xs text-muted-foreground">{group.description}</p>
+            <p className="text-xs text-muted-foreground">
+              {group.description}
+            </p>
           )}
         </div>
       </div>
 
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-3">
-        <Button onClick={onAddExpense} className="gap-2">
+        <Button
+          onClick={() => setShowAddExpense(true)}
+          className="gap-2"
+        >
           <Receipt className="h-4 w-4" />
           Add Expense
         </Button>
-        <Button
-          variant="outline"
-          onClick={() => setShowInvite(!showInvite)}
-          className="gap-2"
-        >
-          <UserPlus className="h-4 w-4" />
-          Invite
-        </Button>
+        {hasUnsettledDebts && onSettleUp ? (
+          <Button
+            variant="outline"
+            onClick={() => onSettleUp(balances)}
+            className="gap-2"
+          >
+            <Scale className="h-4 w-4" />
+            Settle Up
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            onClick={() => setShowInvite(!showInvite)}
+            className="gap-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            Invite
+          </Button>
+        )}
       </div>
 
       {/* Invite Section */}
@@ -157,13 +206,55 @@ export function GroupDetail({
         </div>
       )}
 
+      {/* Balances */}
+      <div>
+        <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+          <Scale className="h-3.5 w-3.5" />
+          Balances
+        </h3>
+        <BalanceDisplay
+          balances={balances}
+          currentUserId={currentUserId}
+        />
+      </div>
+
+      <Separator className="opacity-50" />
+
+      {/* Expenses */}
+      <div>
+        <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+          <Receipt className="h-3.5 w-3.5" />
+          Expenses ({expenses.length})
+        </h3>
+        {expenses.length === 0 ? (
+          <div className="p-6 rounded-xl border border-dashed border-border/50 text-center">
+            <p className="text-sm text-muted-foreground">
+              No expenses yet — add one to get started
+            </p>
+          </div>
+        ) : (
+          <ExpenseList
+            expenses={expenses}
+            currentUserId={currentUserId}
+          />
+        )}
+      </div>
+
+      <Separator className="opacity-50" />
+
       {/* Members */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-medium text-muted-foreground">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <Users className="h-3.5 w-3.5" />
             Members ({group.member_count})
           </h3>
+          <button
+            onClick={() => setShowInvite(!showInvite)}
+            className="text-xs text-primary hover:underline"
+          >
+            + Invite
+          </button>
         </div>
         <div className="space-y-2">
           {group.members.map((member) => {
@@ -172,20 +263,17 @@ export function GroupDetail({
             return (
               <div
                 key={member.id}
-                className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30"
+                className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/30"
               >
-                <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center text-primary text-xs font-semibold">
+                <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center text-primary text-xs font-semibold">
                   {(user?.display_name ?? "?").charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
+                  <p className="text-sm truncate">
                     {user?.display_name ?? "Unknown"}
                     {isCurrentUser && (
                       <span className="text-muted-foreground"> (you)</span>
                     )}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {user?.email ?? user?.phone ?? ""}
                   </p>
                 </div>
                 {member.role === "owner" && (
@@ -199,17 +287,18 @@ export function GroupDetail({
         </div>
       </div>
 
-      {/* Balances placeholder — will be filled in Phase 3 */}
-      <div>
-        <h3 className="text-sm font-medium text-muted-foreground mb-3">
-          Balances
-        </h3>
-        <div className="p-6 rounded-xl border border-dashed border-border/50 text-center">
-          <p className="text-sm text-muted-foreground">
-            No expenses yet — add one to see balances
-          </p>
-        </div>
-      </div>
+      {/* Add Expense Dialog */}
+      <AddExpenseDialog
+        open={showAddExpense}
+        onOpenChange={setShowAddExpense}
+        groupId={groupId}
+        currentUserId={currentUserId}
+        members={group.members.map((m) => ({
+          user_id: m.user_id,
+          user: m.user,
+        }))}
+        onCreated={fetchData}
+      />
     </div>
   );
 }
