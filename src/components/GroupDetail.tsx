@@ -20,6 +20,8 @@ import { Separator } from "@/components/ui/separator";
 import { ExpenseList } from "@/components/ExpenseList";
 import { BalanceDisplay } from "@/components/BalanceDisplay";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
+import { SettleUpDialog } from "@/components/SettleUpDialog";
+import type { BalanceInput } from "@/services/debtSimplifier";
 import {
   ArrowLeft,
   Users,
@@ -35,14 +37,12 @@ interface GroupDetailProps {
   groupId: string;
   currentUserId: string;
   onBack: () => void;
-  onSettleUp?: (balances: BalanceEntry[]) => void;
 }
 
 export function GroupDetail({
   groupId,
   currentUserId,
   onBack,
-  onSettleUp,
 }: GroupDetailProps) {
   const [group, setGroup] = useState<GroupWithMembers | null>(null);
   const [expenses, setExpenses] = useState<ExpenseWithSplits[]>([]);
@@ -52,6 +52,7 @@ export function GroupDetail({
   const [inviting, setInviting] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showSettleUp, setShowSettleUp] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -155,10 +156,10 @@ export function GroupDetail({
           <Receipt className="h-4 w-4" />
           Add Expense
         </Button>
-        {hasUnsettledDebts && onSettleUp ? (
+        {hasUnsettledDebts ? (
           <Button
             variant="outline"
-            onClick={() => onSettleUp(balances)}
+            onClick={() => setShowSettleUp(true)}
             className="gap-2"
           >
             <Scale className="h-4 w-4" />
@@ -298,6 +299,29 @@ export function GroupDetail({
           user: m.user,
         }))}
         onCreated={fetchData}
+      />
+
+      {/* Settle Up Dialog */}
+      <SettleUpDialog
+        open={showSettleUp}
+        onOpenChange={setShowSettleUp}
+        groupId={groupId}
+        groupName={group.name}
+        currentUserId={currentUserId}
+        balances={balances.map((b): BalanceInput => ({
+          userId: b.userId,
+          userName: b.userName,
+          amount: b.amount,
+        }))}
+        memberWallets={new Map(
+          group.members
+            .filter((m) => m.user?.wallet_address)
+            .map((m) => [m.user_id, m.user.wallet_address])
+        )}
+        onSettled={() => {
+          setShowSettleUp(false);
+          fetchData();
+        }}
       />
     </div>
   );
