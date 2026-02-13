@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { GroupList } from "@/components/GroupList";
 import { GroupDetail } from "@/components/GroupDetail";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
+import { ActivityFeed } from "@/components/ActivityFeed";
 
 type Tab = "groups" | "feed" | "wallet";
 
@@ -95,7 +96,7 @@ export function AppShell({ user, loading }: AppShellProps) {
             )}
           </>
         )}
-        {activeTab === "feed" && <FeedPlaceholder />}
+        {activeTab === "feed" && user && <ActivityFeed userId={user.id} />}
         {activeTab === "wallet" && (
           <WalletView
             walletAddress={walletAddress}
@@ -166,22 +167,6 @@ function NavButton({
       {icon}
       <span className="text-[10px] font-medium">{label}</span>
     </button>
-  );
-}
-
-function FeedPlaceholder() {
-  return (
-    <div className="flex flex-col items-center justify-center h-[50vh] gap-4 text-center">
-      <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-        <Activity className="h-8 w-8 text-primary" />
-      </div>
-      <div>
-        <h2 className="text-xl font-semibold">Activity Feed</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Payments and expenses will show up here
-        </p>
-      </div>
-    </div>
   );
 }
 
