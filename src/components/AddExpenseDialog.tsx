@@ -11,8 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Receipt, Loader2, Check } from "lucide-react";
+import { Receipt, Loader2, Check, Camera } from "lucide-react";
 import { createExpense } from "@/services/expenses";
+import { ReceiptScanner } from "@/components/ReceiptScanner";
 import { toast } from "sonner";
 import type { User } from "@/types";
 
@@ -41,6 +42,7 @@ export function AddExpenseDialog({
     new Set(members.map((m) => m.user_id))
   );
   const [creating, setCreating] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   const parsedAmount = parseFloat(amount) || 0;
   const selectedCount = selectedMembers.size;
@@ -128,6 +130,37 @@ export function AddExpenseDialog({
     setSplitType("even");
     setCustomSplits({});
     setSelectedMembers(new Set(members.map((m) => m.user_id)));
+    setShowScanner(false);
+  };
+
+  const handleReceiptExpense = async (params: {
+    title: string;
+    totalAmount: number;
+    splits: { userId: string; amount: number }[];
+  }) => {
+    setCreating(true);
+    try {
+      await createExpense({
+        groupId,
+        paidBy: currentUserId,
+        title: params.title,
+        totalAmount: params.totalAmount,
+        splits: params.splits,
+      });
+
+      toast.success(
+        `Added "${params.title}" — $${params.totalAmount.toFixed(2)}`
+      );
+      onOpenChange(false);
+      resetForm();
+      onCreated();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create expense"
+      );
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -144,6 +177,41 @@ export function AddExpenseDialog({
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
+          {/* Receipt Scanner Toggle */}
+          {showScanner ? (
+            <ReceiptScanner
+              members={members}
+              currentUserId={currentUserId}
+              onExpenseReady={handleReceiptExpense}
+              onCancel={() => setShowScanner(false)}
+            />
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setShowScanner(true)}
+                className="w-full gap-2 border-dashed border-primary/30 text-primary hover:bg-primary/5"
+              >
+                <Camera className="h-4 w-4" />
+                Scan Receipt with AI
+              </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border/50" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    or enter manually
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Manual Entry - hidden when scanner is active */}
+          {!showScanner && (
+          <>
           {/* Title */}
           <div className="space-y-2">
             <Label htmlFor="expense-title">What&apos;s it for?</Label>
@@ -287,6 +355,8 @@ export function AddExpenseDialog({
               </>
             )}
           </Button>
+          </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
