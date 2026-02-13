@@ -1,38 +1,38 @@
-import { WalletContainer } from "./WalletContainer";
-import { WalletHeader } from "./WalletHeader";
-import { SkeletonCard } from "./SkeletonCard";
-import { SkeletonButton } from "./SkeletonButton";
-import { GlassCard } from "./GlassCard";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function SkeletonView() {
   return (
-    <WalletContainer>
-      <WalletHeader />
-      <SkeletonCard />
-      <div className="grid grid-cols-2 gap-4 mb-12">
-        <SkeletonButton />
-        <SkeletonButton />
-      </div>
-      <GlassCard>
-        <div
-          className="h-3 w-28 rounded mb-6"
-          style={{ background: "rgba(255, 255, 255, 0.1)" }}
-        />
-        <div className="space-y-4">
-          <div className="animate-pulse">
-            <div
-              className="h-12 w-full rounded"
-              style={{ background: "rgba(255, 255, 255, 0.05)" }}
-            />
-          </div>
-          <div className="animate-pulse">
-            <div
-              className="h-12 w-full rounded"
-              style={{ background: "rgba(255, 255, 255, 0.05)" }}
-            />
-          </div>
+    <div className="flex flex-col min-h-screen max-w-lg mx-auto bg-background">
+      {/* Header skeleton */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 w-8 rounded-lg" />
+          <Skeleton className="h-5 w-20" />
         </div>
-      </GlassCard>
-    </WalletContainer>
+        <div className="flex items-center gap-3">
+          <div className="text-right space-y-1">
+            <Skeleton className="h-3 w-10 ml-auto" />
+            <Skeleton className="h-4 w-14" />
+          </div>
+          <Skeleton className="h-8 w-8 rounded" />
+        </div>
+      </div>
+
+      {/* Content skeleton */}
+      <div className="flex-1 p-4 space-y-4">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <Skeleton className="h-20 w-full rounded-xl" />
+      </div>
+
+      {/* Bottom nav skeleton */}
+      <div className="flex items-center justify-around px-2 py-3 border-t border-border/50">
+        <Skeleton className="h-10 w-16 rounded-lg" />
+        <Skeleton className="h-10 w-16 rounded-lg" />
+        <Skeleton className="h-10 w-16 rounded-lg" />
+      </div>
+    </div>
   );
 }
