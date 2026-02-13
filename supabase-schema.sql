@@ -28,6 +28,7 @@ CREATE TABLE group_members (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   group_id UUID REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES users(id) NOT NULL,
+  role TEXT DEFAULT 'member' CHECK (role IN ('owner', 'member')),
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(group_id, user_id)
 );
@@ -37,9 +38,10 @@ CREATE TABLE expenses (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   group_id UUID REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
   paid_by UUID REFERENCES users(id) NOT NULL,
-  amount DECIMAL(12,2) NOT NULL,
-  description TEXT NOT NULL,
-  category TEXT,
+  title TEXT NOT NULL,
+  description TEXT,
+  total_amount DECIMAL(12,2) NOT NULL,
+  currency TEXT DEFAULT 'USD',
   receipt_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -50,6 +52,9 @@ CREATE TABLE expense_splits (
   expense_id UUID REFERENCES expenses(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES users(id) NOT NULL,
   amount DECIMAL(12,2) NOT NULL,
+  is_settled BOOLEAN DEFAULT false,
+  settled_tx_hash TEXT,
+  settled_at TIMESTAMPTZ,
   UNIQUE(expense_id, user_id)
 );
 

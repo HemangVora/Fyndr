@@ -3,17 +3,20 @@
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useBalance } from "@/hooks/useBalance";
+import { useGroups } from "@/hooks/useGroups";
 import type { User } from "@/types";
 import {
   Users,
-  Receipt,
   Activity,
   LogOut,
-  Plus,
   Wallet,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GroupList } from "@/components/GroupList";
+import { GroupDetail } from "@/components/GroupDetail";
+import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 
 type Tab = "groups" | "feed" | "wallet";
 
@@ -24,9 +27,12 @@ interface AppShellProps {
 
 export function AppShell({ user, loading }: AppShellProps) {
   const [activeTab, setActiveTab] = useState<Tab>("groups");
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const { logout } = usePrivy();
   const walletAddress = user?.wallet_address ?? "";
   const { balance, loading: balanceLoading } = useBalance(walletAddress);
+  const { groups, loading: groupsLoading, refetch: refetchGroups } = useGroups(user?.id);
 
   if (loading) {
     return (
@@ -41,7 +47,7 @@ export function AppShell({ user, loading }: AppShellProps) {
   return (
     <div className="flex flex-col min-h-screen max-w-lg mx-auto">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
             <Receipt className="h-4 w-4 text-primary" />
@@ -71,11 +77,30 @@ export function AppShell({ user, loading }: AppShellProps) {
       {/* Content Area */}
       <main className="flex-1 p-4">
         {activeTab === "groups" && (
-          <GroupsPlaceholder userName={user?.display_name ?? "there"} />
+          <>
+            {selectedGroupId ? (
+              <GroupDetail
+                groupId={selectedGroupId}
+                currentUserId={user?.id ?? ""}
+                onBack={() => setSelectedGroupId(null)}
+                onAddExpense={() => {
+                  // Phase 3 will implement this
+                }}
+              />
+            ) : (
+              <GroupList
+                groups={groups}
+                loading={groupsLoading}
+                onGroupClick={setSelectedGroupId}
+                onCreateClick={() => setShowCreateGroup(true)}
+                userName={user?.display_name ?? "there"}
+              />
+            )}
+          </>
         )}
         {activeTab === "feed" && <FeedPlaceholder />}
         {activeTab === "wallet" && (
-          <WalletPlaceholder
+          <WalletView
             walletAddress={walletAddress}
             balance={balance}
             user={user}
@@ -84,12 +109,15 @@ export function AppShell({ user, loading }: AppShellProps) {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="flex items-center justify-around border-t border-border/50 px-2 py-2 bg-background/80 backdrop-blur-sm">
+      <nav className="sticky bottom-0 flex items-center justify-around border-t border-border/50 px-2 py-2 bg-background/80 backdrop-blur-xl">
         <NavButton
           icon={<Users className="h-5 w-5" />}
           label="Groups"
           active={activeTab === "groups"}
-          onClick={() => setActiveTab("groups")}
+          onClick={() => {
+            setActiveTab("groups");
+            setSelectedGroupId(null);
+          }}
         />
         <NavButton
           icon={<Activity className="h-5 w-5" />}
@@ -104,6 +132,16 @@ export function AppShell({ user, loading }: AppShellProps) {
           onClick={() => setActiveTab("wallet")}
         />
       </nav>
+
+      {/* Create Group Dialog */}
+      {user && (
+        <CreateGroupDialog
+          open={showCreateGroup}
+          onOpenChange={setShowCreateGroup}
+          userId={user.id}
+          onCreated={refetchGroups}
+        />
+      )}
     </div>
   );
 }
@@ -134,29 +172,9 @@ function NavButton({
   );
 }
 
-function GroupsPlaceholder({ userName }: { userName: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center">
-      <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-        <Users className="h-8 w-8 text-primary" />
-      </div>
-      <div>
-        <h2 className="text-xl font-semibold">Hey, {userName}!</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Create a group to start splitting expenses
-        </p>
-      </div>
-      <Button className="gap-2 mt-2">
-        <Plus className="h-4 w-4" />
-        Create Group
-      </Button>
-    </div>
-  );
-}
-
 function FeedPlaceholder() {
   return (
-    <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center">
+    <div className="flex flex-col items-center justify-center h-[50vh] gap-4 text-center">
       <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
         <Activity className="h-8 w-8 text-primary" />
       </div>
@@ -170,7 +188,7 @@ function FeedPlaceholder() {
   );
 }
 
-function WalletPlaceholder({
+function WalletView({
   walletAddress,
   balance,
   user,
@@ -184,7 +202,9 @@ function WalletPlaceholder({
       <div className="text-center">
         <p className="text-sm text-muted-foreground">Your Balance</p>
         <p className="text-4xl font-bold mt-1">${balance}</p>
-        <p className="text-xs text-muted-foreground mt-2">alphaUSD on Tempo Testnet</p>
+        <p className="text-xs text-muted-foreground mt-2">
+          alphaUSD on Tempo Testnet
+        </p>
       </div>
       <div className="space-y-3 mt-8">
         <InfoRow label="Name" value={user?.display_name ?? "—"} />
@@ -192,7 +212,11 @@ function WalletPlaceholder({
         <InfoRow label="Phone" value={user?.phone ?? "—"} />
         <InfoRow
           label="Wallet"
-          value={walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "—"}
+          value={
+            walletAddress
+              ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+              : "—"
+          }
         />
       </div>
     </div>
