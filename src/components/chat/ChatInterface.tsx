@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { useChat } from "@/hooks/useChat";
+import { useSend } from "@/hooks/useSend";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import {
@@ -11,15 +12,24 @@ import {
   ArrowRightLeft,
   Sparkles,
   Loader2,
+  Send,
+  QrCode,
 } from "lucide-react";
 
 interface ChatInterfaceProps {
   userId: string;
   userName: string;
   onSwitchToGroups?: () => void;
+  onSwitchToPayment?: () => void;
 }
 
 const QUICK_ACTIONS = [
+  {
+    icon: Send,
+    label: "Send Money",
+    message: "I want to send money to someone",
+    color: "text-green-400",
+  },
   {
     icon: Receipt,
     label: "Scan Receipt",
@@ -27,22 +37,16 @@ const QUICK_ACTIONS = [
     color: "text-pink-400",
   },
   {
-    icon: Users,
-    label: "Create Group",
-    message: "Help me create a new group",
-    color: "text-blue-400",
-  },
-  {
     icon: DollarSign,
     label: "Check Balances",
     message: "Show me my balances across all groups",
-    color: "text-green-400",
+    color: "text-yellow-400",
   },
   {
-    icon: ArrowRightLeft,
-    label: "Settle Up",
-    message: "Help me settle up with my groups",
-    color: "text-orange-400",
+    icon: QrCode,
+    label: "My QR Code",
+    message: "Show my wallet QR code for receiving payments",
+    color: "text-blue-400",
   },
 ];
 
@@ -50,8 +54,10 @@ export function ChatInterface({
   userId,
   userName,
   onSwitchToGroups,
+  onSwitchToPayment,
 }: ChatInterfaceProps) {
   const { messages, isStreaming, loaded, sendMessage } = useChat(userId);
+  const { send } = useSend();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
@@ -60,6 +66,22 @@ export function ChatInterface({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Payment confirmation callback — called from ToolResultCard
+  const handlePaymentConfirm = useCallback(
+    async (to: string, amount: string, memo: string): Promise<string | null> => {
+      try {
+        await send(to, amount, memo);
+        // useSend sets txHash internally, but we need to return it
+        // Since send throws on error, reaching here means success
+        // We'll return a placeholder — the actual hash is shown by useSend
+        return "confirmed";
+      } catch {
+        return null;
+      }
+    },
+    [send]
+  );
 
   const hasMessages = messages.length > 0;
 
@@ -81,11 +103,16 @@ export function ChatInterface({
             userName={userName}
             onQuickAction={sendMessage}
             onSwitchToGroups={onSwitchToGroups}
+            onSwitchToPayment={onSwitchToPayment}
           />
         ) : (
           <div className="space-y-4">
             {messages.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} />
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                onPaymentConfirm={handlePaymentConfirm}
+              />
             ))}
           </div>
         )}
@@ -101,10 +128,12 @@ function EmptyState({
   userName,
   onQuickAction,
   onSwitchToGroups,
+  onSwitchToPayment,
 }: {
   userName: string;
   onQuickAction: (text: string) => void;
   onSwitchToGroups?: () => void;
+  onSwitchToPayment?: () => void;
 }) {
   const firstName = userName.split(/[@\s]/)[0];
 
@@ -116,8 +145,7 @@ function EmptyState({
         <h2 className="text-lg font-semibold">Hey {firstName}!</h2>
       </div>
       <p className="text-sm text-muted-foreground text-center mb-6">
-        I&apos;m your SplitPay AI assistant. I can help you split bills, manage
-        groups, and more.
+        I can help you send payments, split bills, manage groups, and more.
       </p>
 
       {/* Quick Actions Grid */}
@@ -137,25 +165,45 @@ function EmptyState({
         })}
       </div>
 
-      {/* SplitPay feature card */}
-      {onSwitchToGroups && (
-        <button
-          onClick={onSwitchToGroups}
-          className="w-full max-w-sm p-4 rounded-xl bg-primary/10 hover:bg-primary/15 transition-colors border border-primary/20 text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center">
-              <Users className="h-5 w-5 text-primary" />
+      {/* App cards */}
+      <div className="w-full max-w-sm space-y-3">
+        {onSwitchToGroups && (
+          <button
+            onClick={onSwitchToGroups}
+            className="w-full p-4 rounded-xl bg-primary/10 hover:bg-primary/15 transition-colors border border-primary/20 text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">SplitPay</p>
+                <p className="text-xs text-muted-foreground">
+                  Split bills and manage expense groups
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold">My Groups</p>
-              <p className="text-xs text-muted-foreground">
-                View and manage your expense groups
-              </p>
+          </button>
+        )}
+        {onSwitchToPayment && (
+          <button
+            onClick={onSwitchToPayment}
+            className="w-full p-4 rounded-xl bg-green-500/10 hover:bg-green-500/15 transition-colors border border-green-500/20 text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <ArrowRightLeft className="h-5 w-5 text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Payments</p>
+                <p className="text-xs text-muted-foreground">
+                  Send, receive, and request payments
+                </p>
+              </div>
             </div>
-          </div>
-        </button>
-      )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

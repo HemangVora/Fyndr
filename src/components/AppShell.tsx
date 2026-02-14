@@ -6,7 +6,6 @@ import { useBalance } from "@/hooks/useBalance";
 import { useGroups } from "@/hooks/useGroups";
 import type { User } from "@/types";
 import {
-  Users,
   Activity,
   LogOut,
   Wallet,
@@ -16,17 +15,16 @@ import {
   Copy,
   Check,
   MessageCircle,
+  LayoutGrid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GroupList } from "@/components/GroupList";
-import { GroupDetail } from "@/components/GroupDetail";
-import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { ChatInterface } from "@/components/chat/ChatInterface";
+import { AppsTab } from "@/components/apps/AppsTab";
 import { useCurrentUser } from "@/providers/UserProvider";
 
-type Tab = "chat" | "groups" | "feed" | "wallet";
+type Tab = "chat" | "apps" | "feed" | "wallet";
 
 interface AppShellProps {
   user: User | null;
@@ -35,8 +33,6 @@ interface AppShellProps {
 
 export function AppShell({ user, loading }: AppShellProps) {
   const [activeTab, setActiveTab] = useState<Tab>("chat");
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const { logout } = usePrivy();
   const { refreshUser } = useCurrentUser();
   const walletAddress = user?.wallet_address ?? "";
@@ -79,7 +75,7 @@ export function AppShell({ user, loading }: AppShellProps) {
           <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
             <Receipt className="h-4 w-4 text-primary" />
           </div>
-          <h1 className="text-lg font-semibold tracking-tight">SplitPay</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Fyndr</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
@@ -108,30 +104,23 @@ export function AppShell({ user, loading }: AppShellProps) {
             userId={user.id}
             userName={user.display_name ?? user.email ?? "there"}
             onSwitchToGroups={() => {
-              setActiveTab("groups");
-              setSelectedGroupId(null);
+              setActiveTab("apps");
               refetchGroups();
+            }}
+            onSwitchToPayment={() => {
+              setActiveTab("apps");
             }}
           />
         )}
-        {activeTab === "groups" && (
-          <>
-            {selectedGroupId ? (
-              <GroupDetail
-                groupId={selectedGroupId}
-                currentUserId={user.id}
-                onBack={() => setSelectedGroupId(null)}
-              />
-            ) : (
-              <GroupList
-                groups={groups}
-                loading={groupsLoading}
-                onGroupClick={setSelectedGroupId}
-                onCreateClick={() => setShowCreateGroup(true)}
-                userName={user.display_name ?? "there"}
-              />
-            )}
-          </>
+        {activeTab === "apps" && (
+          <AppsTab
+            user={user}
+            groups={groups}
+            groupsLoading={groupsLoading}
+            refetchGroups={refetchGroups}
+            walletAddress={walletAddress}
+            balance={balance}
+          />
         )}
         {activeTab === "feed" && <ActivityFeed userId={user.id} />}
         {activeTab === "wallet" && (
@@ -152,12 +141,11 @@ export function AppShell({ user, loading }: AppShellProps) {
           onClick={() => setActiveTab("chat")}
         />
         <NavButton
-          icon={<Users className="h-5 w-5" />}
-          label="Groups"
-          active={activeTab === "groups"}
+          icon={<LayoutGrid className="h-5 w-5" />}
+          label="Apps"
+          active={activeTab === "apps"}
           onClick={() => {
-            setActiveTab("groups");
-            setSelectedGroupId(null);
+            setActiveTab("apps");
             refetchGroups();
           }}
         />
@@ -174,14 +162,6 @@ export function AppShell({ user, loading }: AppShellProps) {
           onClick={() => setActiveTab("wallet")}
         />
       </nav>
-
-      {/* Create Group Dialog */}
-      <CreateGroupDialog
-        open={showCreateGroup}
-        onOpenChange={setShowCreateGroup}
-        userId={user.id}
-        onCreated={refetchGroups}
-      />
     </div>
   );
 }

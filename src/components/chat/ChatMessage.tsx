@@ -4,7 +4,12 @@ import type { ChatMessage as ChatMessageType } from "@/types/chat";
 import { ToolResultCard } from "./ToolResultCard";
 import { Loader2, User, Bot } from "lucide-react";
 
-export function ChatMessage({ message }: { message: ChatMessageType }) {
+interface ChatMessageProps {
+  message: ChatMessageType;
+  onPaymentConfirm?: (to: string, amount: string, memo: string) => Promise<string | null>;
+}
+
+export function ChatMessage({ message, onPaymentConfirm }: ChatMessageProps) {
   const isUser = message.role === "user";
 
   return (
@@ -54,7 +59,11 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
         {!isUser && message.toolResults && message.toolResults.length > 0 && (
           <div className="w-full mt-1">
             {message.toolResults.map((tr) => (
-              <ToolResultCard key={tr.toolCallId} toolResult={tr} />
+              <ToolResultCard
+                key={tr.toolCallId}
+                toolResult={tr}
+                onPaymentConfirm={onPaymentConfirm}
+              />
             ))}
           </div>
         )}

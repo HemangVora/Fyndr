@@ -91,8 +91,21 @@ CREATE TABLE chat_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Payment requests table
+CREATE TABLE payment_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  from_user_id UUID REFERENCES users(id) NOT NULL,
+  to_user_id UUID REFERENCES users(id) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  memo TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'declined')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX idx_chat_messages_user ON chat_messages(user_id, created_at DESC);
+CREATE INDEX idx_payment_requests_from ON payment_requests(from_user_id);
+CREATE INDEX idx_payment_requests_to ON payment_requests(to_user_id);
 CREATE INDEX idx_group_members_group ON group_members(group_id);
 CREATE INDEX idx_group_members_user ON group_members(user_id);
 CREATE INDEX idx_expenses_group ON expenses(group_id);
@@ -121,3 +134,5 @@ CREATE POLICY "Allow all for settlements" ON settlements FOR ALL USING (true) WI
 CREATE POLICY "Allow all for activity_feed" ON activity_feed FOR ALL USING (true) WITH CHECK (true);
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all for chat_messages" ON chat_messages FOR ALL USING (true) WITH CHECK (true);
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all for payment_requests" ON payment_requests FOR ALL USING (true) WITH CHECK (true);

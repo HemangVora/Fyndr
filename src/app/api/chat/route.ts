@@ -5,6 +5,7 @@ import * as expenses from "@/services/expenses";
 import * as settlement from "@/services/settlement";
 import * as activity from "@/services/activity";
 import * as userService from "@/services/user";
+import * as payments from "@/services/payments";
 import { supabase } from "@/lib/supabase";
 import { PrivyClient } from "@privy-io/node";
 
@@ -19,7 +20,7 @@ const privy = new PrivyClient({
 
 const MAX_ITERATIONS = 5;
 
-const SYSTEM_PROMPT = `You are SplitPay AI, a helpful assistant for splitting bills and managing group expenses. You are embedded in a mobile app.
+const SYSTEM_PROMPT = `You are Fyndr AI, a helpful assistant for payments and expense splitting. You are embedded in a mobile payment app.
 
 Key behaviors:
 - Keep responses to 1-3 sentences. Be concise and mobile-friendly.
@@ -29,8 +30,14 @@ Key behaviors:
 - When adding members, ask for their email or phone number.
 - Be proactive: if a user says "split this", figure out the group and amounts.
 - Format lists with bullet points, not tables.
+- When a user asks to send money (e.g. "send 100 to hemang"), use prepare_payment to look up the recipient and prepare the transaction. The actual send happens client-side.
+- When a user asks to request money, use request_payment to create a payment request.
+- When a user wants their wallet QR or address, use get_wallet_info.
 
 You can help with:
+- Sending payments to contacts by name, email, or phone
+- Requesting payments from others
+- Showing wallet QR code for receiving payments
 - Uploading and parsing receipts
 - Creating groups and adding members
 - Adding expenses and splitting bills
@@ -178,6 +185,74 @@ const tools: Anthropic.Tool[] = [
           description: "Number of recent activities to fetch (default 10)",
         },
       },
+      required: [],
+    },
+  },
+  {
+    name: "prepare_payment",
+    description:
+      "Prepare a payment to send money to someone. Looks up the recipient and returns their wallet address. The actual blockchain transaction is executed client-side after user confirms.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        recipient: {
+          type: "string",
+          description:
+            "The recipient's email, phone number, display name, or wallet address",
+        },
+        amount: {
+          type: "number",
+          description: "Amount in USD to send",
+        },
+        memo: {
+          type: "string",
+          description: "Optional memo/note for the transaction",
+        },
+      },
+      required: ["recipient", "amount"],
+    },
+  },
+  {
+    name: "request_payment",
+    description:
+      "Request a payment from someone. Creates a pending payment request that the other person can see and pay.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        from_identifier: {
+          type: "string",
+          description:
+            "Email, phone, or name of the person to request money from",
+        },
+        amount: {
+          type: "number",
+          description: "Amount in USD to request",
+        },
+        memo: {
+          type: "string",
+          description: "Optional reason for the request",
+        },
+      },
+      required: ["from_identifier", "amount"],
+    },
+  },
+  {
+    name: "get_wallet_info",
+    description:
+      "Get the current user's wallet address for receiving payments or displaying a QR code.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "get_payment_requests",
+    description:
+      "Get pending payment requests for the current user (both sent and received).",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
       required: [],
     },
   },
@@ -507,6 +582,118 @@ Rules: price = total for that line. If tax/tip/subtotal not visible, set null. t
             description: a.description,
             group: a.group_name,
             time: a.created_at,
+          })),
+        };
+      }
+
+      case "prepare_payment": {
+        const recipient = toolInput.recipient as string;
+        const amount = toolInput.amount as number;
+        const memo = (toolInput.memo as string) ?? "";
+
+        // Try to find user by name, email, or phone
+        let user = await userService.searchUserByIdentifier(recipient);
+
+        // If not found by email/phone, try searching by display name
+        if (!user) {
+          const { data: nameResults } = await supabase
+            .from("users")
+            .select("*")
+            .ilike("display_name", `%${recipient}%`)
+            .limit(1);
+          if (nameResults && nameResults.length > 0) {
+            user = nameResults[0];
+          }
+        }
+
+        if (!user) {
+          return {
+            error: `Could not find user "${recipient}". Try their email or phone number.`,
+          };
+        }
+
+        return {
+          action: "send_payment",
+          recipient_address: user.wallet_address,
+          recipient_name: user.display_name ?? recipient,
+          recipient_id: user.id,
+          amount: amount.toString(),
+          memo,
+          ready: true,
+        };
+      }
+
+      case "request_payment": {
+        const fromIdentifier = toolInput.from_identifier as string;
+        const amount = toolInput.amount as number;
+        const memo = (toolInput.memo as string) ?? "";
+
+        // Find the target user
+        let targetUser = await userService.searchUserByIdentifier(fromIdentifier);
+        if (!targetUser) {
+          const { data: nameResults } = await supabase
+            .from("users")
+            .select("*")
+            .ilike("display_name", `%${fromIdentifier}%`)
+            .limit(1);
+          if (nameResults && nameResults.length > 0) {
+            targetUser = nameResults[0];
+          }
+        }
+
+        if (!targetUser) {
+          return {
+            error: `Could not find user "${fromIdentifier}". Try their email or phone number.`,
+          };
+        }
+
+        const request = await payments.createPaymentRequest({
+          fromUserId: targetUser.id,
+          toUserId: userId,
+          amount,
+          memo: memo || undefined,
+        });
+
+        return {
+          success: true,
+          request: {
+            id: request.id,
+            from_name: targetUser.display_name,
+            amount: `$${amount.toFixed(2)}`,
+            memo: memo || null,
+          },
+        };
+      }
+
+      case "get_wallet_info": {
+        // Get user from our DB by ID
+        const { data: dbUser } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", userId)
+          .single();
+
+        if (!dbUser) return { error: "User not found" };
+
+        return {
+          action: "show_wallet_qr",
+          wallet_address: dbUser.wallet_address,
+          display_name: dbUser.display_name,
+        };
+      }
+
+      case "get_payment_requests": {
+        const requests = await payments.getPaymentRequests(userId);
+        return {
+          requests: requests.map((r) => ({
+            id: r.id,
+            type: r.to_user_id === userId ? "incoming" : "outgoing",
+            from: r.from_user?.display_name ?? "Unknown",
+            to: r.to_user?.display_name ?? "Unknown",
+            amount: `$${r.amount.toFixed(2)}`,
+            memo: r.memo,
+            status: r.status,
+            created_at: r.created_at,
           })),
         };
       }

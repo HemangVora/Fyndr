@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type { ToolResult } from "@/types/chat";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Users,
   Plus,
@@ -13,7 +15,17 @@ import {
   AlertCircle,
   Info,
   Check,
+  Send,
+  QrCode,
+  HandCoins,
+  Loader2,
+  Inbox,
 } from "lucide-react";
+
+interface ToolResultCardProps {
+  toolResult: ToolResult;
+  onPaymentConfirm?: (to: string, amount: string, memo: string) => Promise<string | null>;
+}
 
 const TOOL_CONFIG: Record<
   string,
@@ -57,9 +69,29 @@ const TOOL_CONFIG: Record<
     icon: Activity,
     color: "text-purple-400",
   },
+  prepare_payment: {
+    label: "Send Payment",
+    icon: Send,
+    color: "text-green-400",
+  },
+  request_payment: {
+    label: "Payment Request",
+    icon: HandCoins,
+    color: "text-orange-400",
+  },
+  get_wallet_info: {
+    label: "Wallet QR",
+    icon: QrCode,
+    color: "text-blue-400",
+  },
+  get_payment_requests: {
+    label: "Payment Requests",
+    icon: Inbox,
+    color: "text-purple-400",
+  },
 };
 
-export function ToolResultCard({ toolResult }: { toolResult: ToolResult }) {
+export function ToolResultCard({ toolResult, onPaymentConfirm }: ToolResultCardProps) {
   const config = TOOL_CONFIG[toolResult.toolName] ?? {
     label: toolResult.toolName,
     icon: Info,
@@ -82,6 +114,21 @@ export function ToolResultCard({ toolResult }: { toolResult: ToolResult }) {
     );
   }
 
+  // Special card for prepare_payment — needs confirm button
+  if (toolResult.toolName === "prepare_payment" && result.ready) {
+    return (
+      <PaymentConfirmCard
+        result={result}
+        onConfirm={onPaymentConfirm}
+      />
+    );
+  }
+
+  // Special card for wallet QR
+  if (toolResult.toolName === "get_wallet_info" && result.wallet_address) {
+    return <WalletQRCard walletAddress={result.wallet_address as string} />;
+  }
+
   return (
     <div className="rounded-lg border border-border/50 bg-secondary/30 p-3 my-2">
       <div className="flex items-center gap-2 text-sm mb-2">
@@ -92,6 +139,135 @@ export function ToolResultCard({ toolResult }: { toolResult: ToolResult }) {
       <div className="text-xs text-muted-foreground">
         {renderResult(toolResult.toolName, result)}
       </div>
+    </div>
+  );
+}
+
+function PaymentConfirmCard({
+  result,
+  onConfirm,
+}: {
+  result: Record<string, unknown>;
+  onConfirm?: (to: string, amount: string, memo: string) => Promise<string | null>;
+}) {
+  const [status, setStatus] = useState<"ready" | "sending" | "sent" | "error">("ready");
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConfirm = async () => {
+    if (!onConfirm || status !== "ready") return;
+    setStatus("sending");
+    try {
+      const hash = await onConfirm(
+        result.recipient_address as string,
+        result.amount as string,
+        (result.memo as string) ?? ""
+      );
+      if (hash) {
+        setTxHash(hash);
+        setStatus("sent");
+      } else {
+        setError("Transaction failed");
+        setStatus("error");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Transaction failed");
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 my-2">
+      <div className="flex items-center gap-2 text-sm mb-2">
+        <Send className="h-4 w-4 text-green-400" />
+        <span className="font-medium">Send Payment</span>
+        {status === "sent" && <Check className="h-3 w-3 text-green-400 ml-auto" />}
+      </div>
+
+      <div className="text-xs space-y-1">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">To</span>
+          <span className="font-medium text-foreground">
+            {result.recipient_name as string}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Amount</span>
+          <span className="font-medium text-foreground">
+            ${parseFloat(result.amount as string).toFixed(2)}
+          </span>
+        </div>
+        {(result.memo as string) && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Memo</span>
+            <span className="text-foreground">{result.memo as string}</span>
+          </div>
+        )}
+      </div>
+
+      {status === "ready" && (
+        <button
+          onClick={handleConfirm}
+          className="w-full mt-3 py-2 rounded-lg bg-green-500 text-white text-xs font-medium hover:bg-green-600 transition-colors"
+        >
+          Confirm & Send
+        </button>
+      )}
+      {status === "sending" && (
+        <div className="flex items-center justify-center gap-2 mt-3 py-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Sending...
+        </div>
+      )}
+      {status === "sent" && (
+        <div className="mt-3 py-2 text-center">
+          <p className="text-xs text-green-400 font-medium">Payment sent!</p>
+          {txHash && (
+            <p className="text-[10px] text-muted-foreground font-mono mt-1">
+              {txHash.slice(0, 10)}...{txHash.slice(-8)}
+            </p>
+          )}
+        </div>
+      )}
+      {status === "error" && (
+        <div className="mt-3 py-2 text-center">
+          <p className="text-xs text-destructive">{error}</p>
+          <button
+            onClick={() => { setStatus("ready"); setError(null); }}
+            className="text-xs text-primary mt-1 underline"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WalletQRCard({ walletAddress }: { walletAddress: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 my-2">
+      <div className="flex items-center gap-2 text-sm mb-3">
+        <QrCode className="h-4 w-4 text-blue-400" />
+        <span className="font-medium">Your Wallet</span>
+      </div>
+      <div className="flex justify-center mb-3">
+        <div className="p-3 rounded-lg bg-white">
+          <QRCodeSVG value={walletAddress} size={140} level="H" />
+        </div>
+      </div>
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(walletAddress);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }}
+        className="w-full py-1.5 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors text-center"
+      >
+        {copied ? "Copied!" : `${walletAddress.slice(0, 12)}...${walletAddress.slice(-8)}`}
+      </button>
     </div>
   );
 }
@@ -179,7 +355,7 @@ function renderResult(toolName: string, result: Record<string, unknown>) {
         <ul className="space-y-1">
           {transfers.map((t, i) => (
             <li key={i}>
-              {t.from} → {t.to}: {t.amount}
+              {t.from} &rarr; {t.to}: {t.amount}
             </li>
           ))}
         </ul>
@@ -240,6 +416,44 @@ function renderResult(toolName: string, result: Record<string, unknown>) {
             <li key={i}>
               <span>{a.description}</span>
               <span className="text-muted-foreground ml-1">in {a.group}</span>
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    case "request_payment": {
+      const req = result.request as {
+        from_name: string;
+        amount: string;
+        memo?: string | null;
+      } | undefined;
+      if (!req) return <p>Payment request sent.</p>;
+      return (
+        <p>
+          Requested {req.amount} from {req.from_name}
+          {req.memo ? ` - "${req.memo}"` : ""}
+        </p>
+      );
+    }
+
+    case "get_payment_requests": {
+      const reqs = (result.requests ?? []) as {
+        type: string;
+        from: string;
+        to: string;
+        amount: string;
+        memo?: string | null;
+      }[];
+      if (reqs.length === 0) return <p>No pending payment requests.</p>;
+      return (
+        <ul className="space-y-1">
+          {reqs.map((r, i) => (
+            <li key={i}>
+              {r.type === "incoming"
+                ? `${r.from} owes you ${r.amount}`
+                : `You owe ${r.to} ${r.amount}`}
+              {r.memo ? ` - "${r.memo}"` : ""}
             </li>
           ))}
         </ul>
