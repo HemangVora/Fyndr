@@ -24,9 +24,8 @@ import {
   type SettlementPlan,
 } from "@/services/settlement";
 import type { BalanceInput } from "@/services/debtSimplifier";
-import { alphaUsd } from "@/constants";
+import { alphaUsd, tempoModerato } from "@/constants";
 import { useWallets } from "@privy-io/react-auth";
-import { tempo } from "tempo.ts/chains";
 import { tempoActions } from "tempo.ts/viem";
 import {
   createWalletClient,
