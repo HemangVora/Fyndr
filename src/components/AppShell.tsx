@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useBalance } from "@/hooks/useBalance";
 import { useGroups } from "@/hooks/useGroups";
@@ -11,6 +11,10 @@ import {
   LogOut,
   Wallet,
   Receipt,
+  Loader2,
+  RefreshCw,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +22,7 @@ import { GroupList } from "@/components/GroupList";
 import { GroupDetail } from "@/components/GroupDetail";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { ActivityFeed } from "@/components/ActivityFeed";
+import { useCurrentUser } from "@/providers/UserProvider";
 
 type Tab = "groups" | "feed" | "wallet";
 
@@ -31,6 +36,7 @@ export function AppShell({ user, loading }: AppShellProps) {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const { logout } = usePrivy();
+  const { refreshUser } = useCurrentUser();
   const walletAddress = user?.wallet_address ?? "";
   const { balance, loading: balanceLoading } = useBalance(walletAddress);
   const { groups, loading: groupsLoading, refetch: refetchGroups } = useGroups(user?.id);
@@ -38,9 +44,27 @@ export function AppShell({ user, loading }: AppShellProps) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-32" />
-        <Skeleton className="h-64 w-full max-w-md rounded-xl" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Setting up your wallet...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          Could not load your account. Please try again.
+        </p>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={refreshUser} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </Button>
+          <Button variant="ghost" onClick={logout}>
+            Log Out
+          </Button>
+        </div>
       </div>
     );
   }
@@ -82,7 +106,7 @@ export function AppShell({ user, loading }: AppShellProps) {
             {selectedGroupId ? (
               <GroupDetail
                 groupId={selectedGroupId}
-                currentUserId={user?.id ?? ""}
+                currentUserId={user.id}
                 onBack={() => setSelectedGroupId(null)}
               />
             ) : (
@@ -91,12 +115,12 @@ export function AppShell({ user, loading }: AppShellProps) {
                 loading={groupsLoading}
                 onGroupClick={setSelectedGroupId}
                 onCreateClick={() => setShowCreateGroup(true)}
-                userName={user?.display_name ?? "there"}
+                userName={user.display_name ?? "there"}
               />
             )}
           </>
         )}
-        {activeTab === "feed" && user && <ActivityFeed userId={user.id} />}
+        {activeTab === "feed" && <ActivityFeed userId={user.id} />}
         {activeTab === "wallet" && (
           <WalletView
             walletAddress={walletAddress}
@@ -132,14 +156,12 @@ export function AppShell({ user, loading }: AppShellProps) {
       </nav>
 
       {/* Create Group Dialog */}
-      {user && (
-        <CreateGroupDialog
-          open={showCreateGroup}
-          onOpenChange={setShowCreateGroup}
-          userId={user.id}
-          onCreated={refetchGroups}
-        />
-      )}
+      <CreateGroupDialog
+        open={showCreateGroup}
+        onOpenChange={setShowCreateGroup}
+        userId={user.id}
+        onCreated={refetchGroups}
+      />
     </div>
   );
 }
@@ -179,6 +201,15 @@ function WalletView({
   balance: string;
   user: User | null;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyAddress = useCallback(() => {
+    if (!walletAddress) return;
+    navigator.clipboard.writeText(walletAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [walletAddress]);
+
   return (
     <div className="space-y-6 py-4">
       <div className="text-center">
@@ -192,14 +223,24 @@ function WalletView({
         <InfoRow label="Name" value={user?.display_name ?? "—"} />
         <InfoRow label="Email" value={user?.email ?? "—"} />
         <InfoRow label="Phone" value={user?.phone ?? "—"} />
-        <InfoRow
-          label="Wallet"
-          value={
-            walletAddress
+        <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-secondary/50">
+          <span className="text-sm text-muted-foreground">Wallet</span>
+          <button
+            onClick={copyAddress}
+            className="flex items-center gap-1.5 text-sm font-medium hover:text-primary transition-colors"
+          >
+            {walletAddress
               ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-              : "—"
-          }
-        />
+              : "—"}
+            {walletAddress && (
+              copied ? (
+                <Check className="h-3.5 w-3.5 text-primary" />
+              ) : (
+                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+              )
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

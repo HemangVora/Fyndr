@@ -3,10 +3,10 @@
 import { PrivyProvider as BasePrivyProvider } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { tempo as configureTempo } from "tempo.ts/chains";
+import { alphaUsd, tempoModerato } from "@/constants";
 
-const tempo = configureTempo({
-  feeToken: "0x20c0000000000000000000000000000000000001",
+const tempo = tempoModerato({
+  feeToken: alphaUsd,
 });
 
 const queryClient = new QueryClient();

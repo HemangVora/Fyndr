@@ -1,51 +1,53 @@
-import { alphaUsd } from "@/constants";
-import { useEffect, useState } from "react";
-import { tempo as configureTempo } from "tempo.ts/chains";
-import { Abis } from "tempo.ts/viem";
-import { Address, createPublicClient, formatUnits, webSocket } from "viem";
-
-
-const tempo = configureTempo({
-  feeToken: alphaUsd,
-});
-
-const publicClient = createPublicClient({
-  chain: tempo,
-  transport: webSocket("wss://rpc.testnet.tempo.xyz"),
-});
+import { alphaUsd, tempoModerato } from "@/constants";
+import { useEffect, useRef, useState } from "react";
+import { useWallets } from "@privy-io/react-auth";
+import { tempoActions } from "tempo.ts/viem";
+import {
+  createWalletClient,
+  custom,
+  formatUnits,
+  type Address,
+} from "viem";
 
 export function useBalance(address: string | undefined) {
   const [balance, setBalance] = useState<string>("0.00");
   const [loading, setLoading] = useState(true);
-  const [hasInitialFetch, setHasInitialFetch] = useState(false);
+  const { wallets } = useWallets();
+  const loadedRef = useRef(false);
 
   useEffect(() => {
     if (!address) {
       setBalance("0.00");
       setLoading(false);
-      setHasInitialFetch(true);
       return;
     }
 
+    const wallet = wallets[0];
+    if (!wallet) return;
+
+    let cancelled = false;
+
     const fetchBalance = async () => {
       try {
-        const balance = (await publicClient.readContract({
-          address: alphaUsd,
-          abi: Abis.tip20,
-          functionName: "balanceOf",
-          args: [address as Address],
-        })) as unknown as bigint;
+        const provider = await wallet.getEthereumProvider();
+        const client = createWalletClient({
+          account: wallet.address as Address,
+          chain: tempoModerato({ feeToken: alphaUsd }),
+          transport: custom(provider),
+        }).extend(tempoActions());
 
-        const decimals = (await publicClient.readContract({
-          address: alphaUsd,
-          abi: Abis.tip20,
-          functionName: "decimals",
-        })) as unknown as number;
+        const rawBalance = await client.token.getBalance({
+          token: alphaUsd,
+          account: address as Address,
+        });
 
-        const formatted = formatUnits(balance, decimals);
+        const metadata = await client.token.getMetadata({ token: alphaUsd });
+
+        if (cancelled) return;
+
+        const formatted = formatUnits(rawBalance, metadata.decimals);
         const number = parseFloat(formatted);
 
-        // Format with compact notation for large numbers
         let displayBalance: string;
         if (number >= 1_000_000) {
           displayBalance = (number / 1_000_000).toFixed(2) + "M";
@@ -58,21 +60,22 @@ export function useBalance(address: string | undefined) {
         setBalance(displayBalance);
       } catch (error) {
         console.error("Error fetching balance:", error);
-        setBalance("0.00");
       } finally {
-        // Only set loading to false after first successful fetch
-        if (!hasInitialFetch) {
+        if (!cancelled && !loadedRef.current) {
           setLoading(false);
-          setHasInitialFetch(true);
+          loadedRef.current = true;
         }
       }
     };
 
     fetchBalance();
-    const interval = setInterval(fetchBalance, 10000); // Refresh every 10 seconds
+    const interval = setInterval(fetchBalance, 5000);
 
-    return () => clearInterval(interval);
-  }, [address, hasInitialFetch]);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [address, wallets]);
 
   return { balance, loading };
 }
