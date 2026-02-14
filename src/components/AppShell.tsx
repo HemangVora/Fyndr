@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Copy,
   Check,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,9 +23,10 @@ import { GroupList } from "@/components/GroupList";
 import { GroupDetail } from "@/components/GroupDetail";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { ActivityFeed } from "@/components/ActivityFeed";
+import { ChatInterface } from "@/components/chat/ChatInterface";
 import { useCurrentUser } from "@/providers/UserProvider";
 
-type Tab = "groups" | "feed" | "wallet";
+type Tab = "chat" | "groups" | "feed" | "wallet";
 
 interface AppShellProps {
   user: User | null;
@@ -32,7 +34,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ user, loading }: AppShellProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("groups");
+  const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const { logout } = usePrivy();
@@ -100,7 +102,17 @@ export function AppShell({ user, loading }: AppShellProps) {
       </header>
 
       {/* Content Area */}
-      <main className="flex-1 p-4">
+      <main className={`flex-1 ${activeTab === "chat" ? "" : "p-4"} overflow-hidden`}>
+        {activeTab === "chat" && (
+          <ChatInterface
+            userId={user.id}
+            userName={user.display_name ?? user.email ?? "there"}
+            onSwitchToGroups={() => {
+              setActiveTab("groups");
+              setSelectedGroupId(null);
+            }}
+          />
+        )}
         {activeTab === "groups" && (
           <>
             {selectedGroupId ? (
@@ -132,6 +144,12 @@ export function AppShell({ user, loading }: AppShellProps) {
 
       {/* Bottom Navigation */}
       <nav className="sticky bottom-0 flex items-center justify-around border-t border-border/50 px-2 py-2 bg-background/80 backdrop-blur-xl">
+        <NavButton
+          icon={<MessageCircle className="h-5 w-5" />}
+          label="Chat"
+          active={activeTab === "chat"}
+          onClick={() => setActiveTab("chat")}
+        />
         <NavButton
           icon={<Users className="h-5 w-5" />}
           label="Groups"

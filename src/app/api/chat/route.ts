@@ -1,0 +1,701 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { NextRequest } from "next/server";
+import * as groups from "@/services/groups";
+import * as expenses from "@/services/expenses";
+import * as settlement from "@/services/settlement";
+import * as activity from "@/services/activity";
+import * as userService from "@/services/user";
+import { supabase } from "@/lib/supabase";
+import { PrivyClient } from "@privy-io/node";
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+const privy = new PrivyClient({
+  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
+  appSecret: process.env.PRIVY_APP_SECRET ?? "",
+});
+
+const MAX_ITERATIONS = 5;
+
+const SYSTEM_PROMPT = `You are SplitPay AI, a helpful assistant for splitting bills and managing group expenses. You are embedded in a mobile app.
+
+Key behaviors:
+- Keep responses to 1-3 sentences. Be concise and mobile-friendly.
+- Use $ formatting for amounts (e.g. $12.50).
+- When a user uploads a receipt image, immediately call parse_receipt_image to extract items.
+- Before creating expenses, confirm the amount and group with the user.
+- When adding members, ask for their email or phone number.
+- Be proactive: if a user says "split this", figure out the group and amounts.
+- Format lists with bullet points, not tables.
+
+You can help with:
+- Uploading and parsing receipts
+- Creating groups and adding members
+- Adding expenses and splitting bills
+- Checking balances (who owes whom)
+- Generating settlement plans (minimum transfers needed)
+- Searching for users and viewing activity`;
+
+const tools: Anthropic.Tool[] = [
+  {
+    name: "get_my_groups",
+    description:
+      "Get all groups the current user belongs to. Returns group names, member counts, and IDs.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "create_group",
+    description: "Create a new expense-sharing group.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "Group name" },
+        description: {
+          type: "string",
+          description: "Optional group description",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "add_group_member",
+    description:
+      "Add a member to a group by their email or phone number. Creates a new user via Privy if they don't exist.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        group_id: { type: "string", description: "The group ID" },
+        identifier: {
+          type: "string",
+          description: "Email address or phone number of the person to add",
+        },
+      },
+      required: ["group_id", "identifier"],
+    },
+  },
+  {
+    name: "get_group_details",
+    description:
+      "Get full details of a group including members, expenses, and balances.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        group_id: { type: "string", description: "The group ID" },
+      },
+      required: ["group_id"],
+    },
+  },
+  {
+    name: "add_expense",
+    description:
+      "Add an expense to a group. Splits evenly among all members by default, or provide custom splits.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        group_id: { type: "string", description: "The group ID" },
+        title: {
+          type: "string",
+          description: "Expense title (e.g. 'Dinner at Mario\\'s')",
+        },
+        total_amount: { type: "number", description: "Total amount in USD" },
+        description: {
+          type: "string",
+          description: "Optional expense description",
+        },
+        split_user_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional: specific user IDs to split among. If omitted, splits among all group members.",
+        },
+      },
+      required: ["group_id", "title", "total_amount"],
+    },
+  },
+  {
+    name: "get_balances",
+    description:
+      "Get the current balance for each member in a group (who owes whom).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        group_id: { type: "string", description: "The group ID" },
+      },
+      required: ["group_id"],
+    },
+  },
+  {
+    name: "get_settlement_plan",
+    description:
+      "Compute the minimum number of transfers needed to settle all debts in a group.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        group_id: { type: "string", description: "The group ID" },
+      },
+      required: ["group_id"],
+    },
+  },
+  {
+    name: "parse_receipt_image",
+    description:
+      "Parse a receipt image that the user has uploaded. Extracts merchant, items, tax, tip, and total.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "search_user",
+    description: "Look up a user by email or phone number.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        identifier: {
+          type: "string",
+          description: "Email or phone number to search for",
+        },
+      },
+      required: ["identifier"],
+    },
+  },
+  {
+    name: "get_activity",
+    description: "Get recent activity feed for the current user.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        limit: {
+          type: "number",
+          description: "Number of recent activities to fetch (default 10)",
+        },
+      },
+      required: [],
+    },
+  },
+];
+
+// Execute a tool call and return the result
+async function executeTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  userId: string,
+  imageBase64?: string,
+  imageMediaType?: string
+): Promise<Record<string, unknown>> {
+  try {
+    switch (toolName) {
+      case "get_my_groups": {
+        const result = await groups.getGroupsForUser(userId);
+        return {
+          groups: result.map((g) => ({
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            member_count: g.member_count,
+            members: g.members.map((m) => ({
+              id: m.user_id,
+              name: m.user?.display_name ?? "Unknown",
+              role: m.role,
+            })),
+          })),
+        };
+      }
+
+      case "create_group": {
+        const result = await groups.createGroup({
+          name: toolInput.name as string,
+          description: toolInput.description as string | undefined,
+          createdBy: userId,
+        });
+        return {
+          success: true,
+          group: { id: result.id, name: result.name },
+        };
+      }
+
+      case "add_group_member": {
+        const identifier = toolInput.identifier as string;
+        const groupId = toolInput.group_id as string;
+
+        // Look up user in our DB first
+        let user = await userService.searchUserByIdentifier(identifier);
+
+        if (!user) {
+          // Use Privy to find or create the user
+          let privyUser;
+          if (identifier.includes("@")) {
+            privyUser = await privy
+              .users()
+              .getByEmailAddress({ address: identifier })
+              .catch(() => null);
+            if (!privyUser) {
+              privyUser = await privy.users().create({
+                linked_accounts: [{ type: "email", address: identifier }],
+                wallets: [{ chain_type: "ethereum" }],
+              });
+            }
+          } else {
+            privyUser = await privy
+              .users()
+              .getByPhoneNumber({ number: identifier })
+              .catch(() => null);
+            if (!privyUser) {
+              privyUser = await privy.users().create({
+                linked_accounts: [{ type: "phone", number: identifier }],
+                wallets: [{ chain_type: "ethereum" }],
+              });
+            }
+          }
+
+          const wallet = privyUser.linked_accounts?.find(
+            (a) => a.type === "wallet" && a.chain_type === "ethereum"
+          );
+
+          // Upsert into our DB
+          const { data: newUser, error } = await supabase
+            .from("users")
+            .upsert(
+              {
+                privy_id: privyUser.id,
+                wallet_address: wallet?.address ?? "",
+                email: identifier.includes("@") ? identifier : null,
+                phone: !identifier.includes("@") ? identifier : null,
+                display_name: identifier,
+              },
+              { onConflict: "privy_id" }
+            )
+            .select("*")
+            .single();
+
+          if (error) throw new Error(`Failed to create user: ${error.message}`);
+          user = newUser;
+        }
+
+        await groups.addMember(groupId, user!.id);
+        return {
+          success: true,
+          user: {
+            id: user!.id,
+            name: user!.display_name,
+            identifier,
+          },
+        };
+      }
+
+      case "get_group_details": {
+        const groupId = toolInput.group_id as string;
+        const group = await groups.getGroupById(groupId);
+        if (!group) return { error: "Group not found" };
+
+        const expenseList = await expenses.getExpensesForGroup(groupId);
+        const balances = expenses.calculateGroupBalances(
+          expenseList,
+          group.members
+        );
+
+        return {
+          group: {
+            id: group.id,
+            name: group.name,
+            description: group.description,
+            member_count: group.member_count,
+            members: group.members.map((m) => ({
+              id: m.user_id,
+              name: m.user?.display_name ?? "Unknown",
+              role: m.role,
+            })),
+          },
+          expenses: expenseList.slice(0, 10).map((e) => ({
+            title: e.title,
+            amount: e.total_amount,
+            paid_by: e.paid_by_user?.display_name ?? "Unknown",
+            date: e.created_at,
+          })),
+          balances: balances.map((b) => ({
+            name: b.userName,
+            amount: b.amount,
+            status:
+              b.amount > 0
+                ? "is owed"
+                : b.amount < 0
+                  ? "owes"
+                  : "settled up",
+          })),
+        };
+      }
+
+      case "add_expense": {
+        const groupId = toolInput.group_id as string;
+        const group = await groups.getGroupById(groupId);
+        if (!group) return { error: "Group not found" };
+
+        const splitUserIds =
+          (toolInput.split_user_ids as string[]) ??
+          group.members.map((m) => m.user_id);
+
+        const totalAmount = toolInput.total_amount as number;
+        const perPerson =
+          Math.round((totalAmount / splitUserIds.length) * 100) / 100;
+
+        const splits = splitUserIds.map((uid) => ({
+          userId: uid,
+          amount: perPerson,
+        }));
+
+        const expense = await expenses.createExpense({
+          groupId,
+          paidBy: userId,
+          title: toolInput.title as string,
+          description: toolInput.description as string | undefined,
+          totalAmount,
+          splits,
+        });
+
+        return {
+          success: true,
+          expense: {
+            id: expense.id,
+            title: expense.title,
+            total: totalAmount,
+            split_count: splitUserIds.length,
+            per_person: perPerson,
+          },
+        };
+      }
+
+      case "get_balances": {
+        const groupId = toolInput.group_id as string;
+        const group = await groups.getGroupById(groupId);
+        if (!group) return { error: "Group not found" };
+
+        const expenseList = await expenses.getExpensesForGroup(groupId);
+        const balances = expenses.calculateGroupBalances(
+          expenseList,
+          group.members
+        );
+
+        return {
+          group_name: group.name,
+          balances: balances.map((b) => ({
+            name: b.userName,
+            user_id: b.userId,
+            amount: b.amount,
+            status:
+              b.amount > 0
+                ? `is owed $${b.amount.toFixed(2)}`
+                : b.amount < 0
+                  ? `owes $${Math.abs(b.amount).toFixed(2)}`
+                  : "settled up",
+          })),
+        };
+      }
+
+      case "get_settlement_plan": {
+        const groupId = toolInput.group_id as string;
+        const group = await groups.getGroupById(groupId);
+        if (!group) return { error: "Group not found" };
+
+        const expenseList = await expenses.getExpensesForGroup(groupId);
+        const balances = expenses.calculateGroupBalances(
+          expenseList,
+          group.members
+        );
+
+        const plan = settlement.computeSettlementPlan(balances);
+
+        return {
+          group_name: group.name,
+          transfers: plan.transfers.map((t) => ({
+            from: t.fromName,
+            to: t.toName,
+            amount: `$${t.amount.toFixed(2)}`,
+          })),
+          total_amount: `$${plan.totalAmount.toFixed(2)}`,
+          transaction_count: plan.transactionCount,
+        };
+      }
+
+      case "parse_receipt_image": {
+        if (!imageBase64) {
+          return { error: "No image was uploaded with this conversation." };
+        }
+
+        const mediaType = (imageMediaType ?? "image/jpeg") as
+          | "image/jpeg"
+          | "image/png"
+          | "image/gif"
+          | "image/webp";
+
+        const response = await anthropic.messages.create({
+          model: "claude-sonnet-4-5-20250929",
+          max_tokens: 1024,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: mediaType,
+                    data: imageBase64,
+                  },
+                },
+                {
+                  type: "text",
+                  text: `Extract all line items from this receipt. Return ONLY valid JSON:
+{
+  "merchant": "Name or null",
+  "items": [{"name": "Item", "price": 12.99, "quantity": 1}],
+  "subtotal": 25.98,
+  "tax": 2.34,
+  "tip": 5.00,
+  "total": 33.32
+}
+Rules: price = total for that line. If tax/tip/subtotal not visible, set null. total is required.`,
+                },
+              ],
+            },
+          ],
+        });
+
+        const textBlock = response.content.find((b) => b.type === "text");
+        if (!textBlock || textBlock.type !== "text") {
+          return { error: "Failed to parse receipt" };
+        }
+
+        let jsonStr = textBlock.text.trim();
+        if (jsonStr.startsWith("```")) {
+          jsonStr = jsonStr
+            .replace(/^```(?:json)?\n?/, "")
+            .replace(/\n?```$/, "");
+        }
+
+        return { receipt: JSON.parse(jsonStr) };
+      }
+
+      case "search_user": {
+        const identifier = toolInput.identifier as string;
+        const user = await userService.searchUserByIdentifier(identifier);
+        if (!user) return { found: false, identifier };
+        return {
+          found: true,
+          user: {
+            id: user.id,
+            name: user.display_name,
+            email: user.email,
+            phone: user.phone,
+          },
+        };
+      }
+
+      case "get_activity": {
+        const limit = (toolInput.limit as number) ?? 10;
+        const items = await activity.getActivityFeed(userId, limit);
+        return {
+          activities: items.map((a) => ({
+            type: a.type,
+            description: a.description,
+            group: a.group_name,
+            time: a.created_at,
+          })),
+        };
+      }
+
+      default:
+        return { error: `Unknown tool: ${toolName}` };
+    }
+  } catch (err) {
+    console.error(`Tool ${toolName} error:`, err);
+    return {
+      error: err instanceof Error ? err.message : "Tool execution failed",
+    };
+  }
+}
+
+function sendSSE(
+  controller: ReadableStreamDefaultController,
+  type: string,
+  data: unknown
+) {
+  const payload = JSON.stringify({ type, data });
+  controller.enqueue(new TextEncoder().encode(`data: ${payload}\n\n`));
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { messages, userId } = body;
+
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "userId required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Extract image from the latest user message (if any)
+    const latestUserMsg = [...messages].reverse().find(
+      (m: { role: string; imageBase64?: string }) =>
+        m.role === "user" && m.imageBase64
+    );
+    const imageBase64 = latestUserMsg?.imageBase64;
+    const imageMediaType = latestUserMsg?.imageMediaType;
+
+    // Build Anthropic messages — strip image data from older messages
+    const anthropicMessages: Anthropic.MessageParam[] = messages.map(
+      (
+        m: {
+          role: string;
+          content: string;
+          imageBase64?: string;
+          imageMediaType?: string;
+        },
+        idx: number
+      ) => {
+        const isLatest = idx === messages.length - 1;
+
+        if (m.role === "user" && m.imageBase64 && isLatest) {
+          return {
+            role: "user" as const,
+            content: [
+              {
+                type: "image" as const,
+                source: {
+                  type: "base64" as const,
+                  media_type: (m.imageMediaType ?? "image/jpeg") as
+                    | "image/jpeg"
+                    | "image/png"
+                    | "image/gif"
+                    | "image/webp",
+                  data: m.imageBase64,
+                },
+              },
+              { type: "text" as const, text: m.content || "What's in this receipt?" },
+            ],
+          };
+        }
+
+        return {
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        };
+      }
+    );
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          let currentMessages = anthropicMessages;
+          let iterations = 0;
+
+          while (iterations < MAX_ITERATIONS) {
+            iterations++;
+
+            const response = await anthropic.messages.create({
+              model: "claude-sonnet-4-5-20250929",
+              max_tokens: 2048,
+              system: SYSTEM_PROMPT,
+              tools,
+              messages: currentMessages,
+            });
+
+            let hasToolUse = false;
+            const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+            for (const block of response.content) {
+              if (block.type === "text") {
+                sendSSE(controller, "text_delta", { text: block.text });
+              } else if (block.type === "tool_use") {
+                hasToolUse = true;
+
+                sendSSE(controller, "tool_use_start", {
+                  id: block.id,
+                  name: block.name,
+                  input: block.input,
+                });
+
+                const result = await executeTool(
+                  block.name,
+                  block.input as Record<string, unknown>,
+                  userId,
+                  imageBase64,
+                  imageMediaType
+                );
+
+                const isError = "error" in result;
+
+                sendSSE(controller, "tool_result", {
+                  toolCallId: block.id,
+                  toolName: block.name,
+                  result,
+                  isError,
+                });
+
+                toolResults.push({
+                  type: "tool_result",
+                  tool_use_id: block.id,
+                  content: JSON.stringify(result),
+                  is_error: isError,
+                });
+              }
+            }
+
+            if (!hasToolUse) {
+              // No tool calls — we're done
+              sendSSE(controller, "done", {});
+              break;
+            }
+
+            // Continue the agentic loop with tool results
+            currentMessages = [
+              ...currentMessages,
+              { role: "assistant" as const, content: response.content },
+              { role: "user" as const, content: toolResults },
+            ];
+          }
+
+          if (iterations >= MAX_ITERATIONS) {
+            sendSSE(controller, "text_delta", {
+              text: "\n\nI've reached the maximum number of steps. Please continue with another message.",
+            });
+            sendSSE(controller, "done", {});
+          }
+        } catch (err) {
+          console.error("Chat stream error:", err);
+          sendSSE(controller, "error", {
+            message:
+              err instanceof Error ? err.message : "An error occurred",
+          });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (err) {
+    console.error("Chat route error:", err);
+    return new Response(
+      JSON.stringify({
+        error: err instanceof Error ? err.message : "Internal error",
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+}
