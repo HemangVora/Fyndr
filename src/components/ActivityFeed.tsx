@@ -11,6 +11,8 @@ import {
   Users,
   UserPlus,
   ExternalLink,
+  ShoppingCart,
+  CreditCard,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -125,5 +127,9 @@ function getIcon(type: ActivityItem["type"]) {
       return <Users className="h-4 w-4 text-primary" />;
     case "member_joined":
       return <UserPlus className="h-4 w-4 text-primary" />;
+    case "agent_order":
+      return <ShoppingCart className="h-4 w-4 text-green-400" />;
+    case "subscription_payment":
+      return <CreditCard className="h-4 w-4 text-purple-400" />;
   }
 }

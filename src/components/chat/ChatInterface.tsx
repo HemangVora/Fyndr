@@ -14,6 +14,8 @@ import {
   Loader2,
   Send,
   QrCode,
+  ShoppingCart,
+  Bot,
 } from "lucide-react";
 
 interface ChatInterfaceProps {
@@ -46,6 +48,18 @@ const QUICK_ACTIONS = [
     icon: QrCode,
     label: "My QR Code",
     message: "Show my wallet QR code for receiving payments",
+    color: "text-blue-400",
+  },
+  {
+    icon: ShoppingCart,
+    label: "Shop",
+    message: "I want to shop for groceries",
+    color: "text-green-400",
+  },
+  {
+    icon: Bot,
+    label: "Agents",
+    message: "What agents are available?",
     color: "text-blue-400",
   },
 ];

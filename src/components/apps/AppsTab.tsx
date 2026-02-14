@@ -7,13 +7,15 @@ import { GroupList } from "@/components/GroupList";
 import { GroupDetail } from "@/components/GroupDetail";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { PaymentApp } from "./PaymentApp";
+import { AgentMarketplace } from "./AgentMarketplace";
 import {
   Users,
   ArrowRightLeft,
   ChevronLeft,
+  Bot,
 } from "lucide-react";
 
-type AppView = "home" | "splitpay" | "payment";
+type AppView = "home" | "splitpay" | "payment" | "agents";
 
 interface AppsTabProps {
   user: User;
@@ -22,6 +24,7 @@ interface AppsTabProps {
   refetchGroups: () => void;
   walletAddress: string;
   balance: string;
+  onSwitchToChat?: () => void;
 }
 
 export function AppsTab({
@@ -31,6 +34,7 @@ export function AppsTab({
   refetchGroups,
   walletAddress,
   balance,
+  onSwitchToChat,
 }: AppsTabProps) {
   const [view, setView] = useState<AppView>("home");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -90,6 +94,21 @@ export function AppsTab({
     );
   }
 
+  if (view === "agents") {
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={() => setView("home")}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back to Apps
+        </button>
+        <AgentMarketplace onChatWithAgent={onSwitchToChat} />
+      </div>
+    );
+  }
+
   // Home view — app cards
   return (
     <div className="space-y-4">
@@ -134,6 +153,27 @@ export function AppsTab({
             </div>
             <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded-full">
               ${balance}
+            </span>
+          </div>
+        </button>
+
+        {/* Agent Marketplace Card */}
+        <button
+          onClick={() => setView("agents")}
+          className="w-full p-5 rounded-xl bg-blue-500/10 hover:bg-blue-500/15 transition-colors border border-blue-500/20 text-left"
+        >
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+              <Bot className="h-6 w-6 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-base font-semibold">Agent Marketplace</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Browse AI agents for shopping, subscriptions & more
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded-full">
+              New
             </span>
           </div>
         </button>

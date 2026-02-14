@@ -93,7 +93,7 @@ export interface ParsedReceipt {
 
 export interface ActivityItem {
   id: string;
-  type: "expense_added" | "settlement" | "group_created" | "member_joined";
+  type: "expense_added" | "settlement" | "group_created" | "member_joined" | "agent_order" | "subscription_payment";
   group_id: string;
   group_name: string;
   actor_id: string;
@@ -102,4 +102,63 @@ export interface ActivityItem {
   amount: number | null;
   tx_hash: string | null;
   created_at: string;
+}
+
+export interface Agent {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string;
+  color: string;
+  wallet_address: string;
+  capabilities: string[];
+  status: "active" | "inactive" | "coming_soon";
+  created_at: string;
+}
+
+export interface CommerceOrder {
+  id: string;
+  user_id: string;
+  agent_id: string;
+  items: { product_id: string; name: string; price: number; quantity: number }[];
+  subtotal: number;
+  fees: number;
+  total: number;
+  delivery_address: string | null;
+  status: "pending" | "confirmed" | "paid" | "processing" | "delivered" | "cancelled";
+  tx_hash: string | null;
+  created_at: string;
+  agent?: Agent;
+}
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  agent_id: string;
+  plan_name: string;
+  amount: number;
+  interval: "daily" | "weekly" | "monthly";
+  status: "active" | "paused" | "cancelled";
+  next_payment_at: string;
+  last_payment_at: string | null;
+  last_tx_hash: string | null;
+  created_at: string;
+  agent?: Agent;
+}
+
+export interface AgentTransfer {
+  id: string;
+  from_agent_id: string | null;
+  to_agent_id: string | null;
+  from_user_id: string | null;
+  to_user_id: string | null;
+  amount: number;
+  tx_hash: string | null;
+  memo: string | null;
+  transfer_type: "user_to_agent" | "agent_to_agent" | "agent_to_user" | "subscription";
+  reference_id: string | null;
+  created_at: string;
+  from_agent?: Agent;
+  to_agent?: Agent;
 }

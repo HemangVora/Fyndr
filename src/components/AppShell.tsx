@@ -120,6 +120,7 @@ export function AppShell({ user, loading }: AppShellProps) {
             refetchGroups={refetchGroups}
             walletAddress={walletAddress}
             balance={balance}
+            onSwitchToChat={() => setActiveTab("chat")}
           />
         )}
         {activeTab === "feed" && <ActivityFeed userId={user.id} />}

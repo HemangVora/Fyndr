@@ -64,6 +64,10 @@ function buildDescription(
       return `${actorName} created group "${metadata.group_name ?? ""}"`;
     case "member_joined":
       return `${actorName} joined the group`;
+    case "agent_order":
+      return `${actorName} placed an order — $${(metadata.amount as number)?.toFixed(2) ?? "0.00"}`;
+    case "subscription_payment":
+      return `${actorName} subscribed to ${metadata.plan_name ?? "a plan"} — $${(metadata.amount as number)?.toFixed(2) ?? "0.00"}`;
     default:
       return `${actorName} did something`;
   }

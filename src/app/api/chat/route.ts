@@ -6,6 +6,10 @@ import * as settlement from "@/services/settlement";
 import * as activity from "@/services/activity";
 import * as userService from "@/services/user";
 import * as payments from "@/services/payments";
+import * as agents from "@/services/agents";
+import * as commerce from "@/services/commerce";
+import * as subscriptions from "@/services/subscriptions";
+import * as agentTransfers from "@/services/agentTransfers";
 import { supabase } from "@/lib/supabase";
 import { PrivyClient } from "@privy-io/node";
 
@@ -43,7 +47,13 @@ You can help with:
 - Adding expenses and splitting bills
 - Checking balances (who owes whom)
 - Generating settlement plans (minimum transfers needed)
-- Searching for users and viewing activity`;
+- Searching for users and viewing activity
+
+You also handle agentic commerce on the Tempo blockchain:
+- When a user wants to shop, use browse_products then create_order.
+- For subscriptions, use browse_subscriptions and manage_subscription.
+- For agent discovery, use browse_agents.
+- All payments are REAL on-chain Tempo transfers. Fulfillment is simulated on testnet.`;
 
 const tools: Anthropic.Tool[] = [
   {
@@ -253,6 +263,121 @@ const tools: Anthropic.Tool[] = [
     input_schema: {
       type: "object" as const,
       properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "browse_agents",
+    description:
+      "List all available agents in the Fyndr agent marketplace. Shows active and coming soon agents.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "browse_products",
+    description:
+      "Browse the product catalog for shopping. Can filter by category or search term.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          description:
+            "Filter by category: dairy, bakery, produce, meat, pantry",
+        },
+        search: {
+          type: "string",
+          description: "Search term to filter products by name",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "create_order",
+    description:
+      "Create a shopping order with selected products. Returns an order that the user must confirm and pay on-chain.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              product_id: { type: "string" },
+              quantity: { type: "number" },
+            },
+            required: ["product_id", "quantity"],
+          },
+          description: "Array of items with product_id and quantity",
+        },
+        delivery_address: {
+          type: "string",
+          description: "Optional delivery address",
+        },
+      },
+      required: ["items"],
+    },
+  },
+  {
+    name: "get_my_orders",
+    description: "Get the current user's order history from agent commerce.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "browse_subscriptions",
+    description:
+      "Show available subscription plans and the user's active subscriptions.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "manage_subscription",
+    description:
+      "Subscribe to a plan, or cancel/pause an existing subscription.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        action: {
+          type: "string",
+          enum: ["subscribe", "cancel", "pause"],
+          description: "Action to perform",
+        },
+        plan_id: {
+          type: "string",
+          description: "Plan ID (required for subscribe)",
+        },
+        subscription_id: {
+          type: "string",
+          description: "Subscription ID (required for cancel/pause)",
+        },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "get_agent_activity",
+    description:
+      "Get recent agent transfer activity showing the on-chain agent economy.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        limit: {
+          type: "number",
+          description: "Number of recent transfers to fetch (default 10)",
+        },
+      },
       required: [],
     },
   },
@@ -694,6 +819,164 @@ Rules: price = total for that line. If tax/tip/subtotal not visible, set null. t
             memo: r.memo,
             status: r.status,
             created_at: r.created_at,
+          })),
+        };
+      }
+
+      case "browse_agents": {
+        const allAgents = await agents.getAllAgents();
+        return {
+          agents: allAgents.map((a) => ({
+            id: a.id,
+            slug: a.slug,
+            name: a.name,
+            description: a.description,
+            icon: a.icon,
+            color: a.color,
+            capabilities: a.capabilities,
+            status: a.status,
+            wallet_address: a.wallet_address,
+          })),
+        };
+      }
+
+      case "browse_products": {
+        const products = commerce.browseProducts({
+          category: toolInput.category as string | undefined,
+          search: toolInput.search as string | undefined,
+        });
+        return {
+          products: products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            category: p.category,
+            description: p.description,
+            emoji: p.emoji,
+          })),
+          categories: ["dairy", "bakery", "produce", "meat", "pantry"],
+        };
+      }
+
+      case "create_order": {
+        const items = toolInput.items as { product_id: string; quantity: number }[];
+        // Get the grocery-shopper agent
+        const agent = await agents.getAgentBySlug("grocery-shopper");
+        if (!agent) return { error: "Grocery agent not available" };
+
+        const order = await commerce.createOrder({
+          userId,
+          agentId: agent.id,
+          items,
+          deliveryAddress: toolInput.delivery_address as string | undefined,
+        });
+
+        return {
+          action: "confirm_order",
+          order_id: order.id,
+          items: order.items,
+          subtotal: order.subtotal,
+          fees: order.fees,
+          total: order.total,
+          agent_name: agent.name,
+          agent_wallet: agent.wallet_address,
+        };
+      }
+
+      case "get_my_orders": {
+        const orders = await commerce.getOrdersForUser(userId);
+        return {
+          orders: orders.map((o) => ({
+            id: o.id,
+            items: o.items,
+            total: o.total,
+            status: o.status,
+            tx_hash: o.tx_hash,
+            created_at: o.created_at,
+            agent_name: o.agent?.name ?? "Agent",
+          })),
+        };
+      }
+
+      case "browse_subscriptions": {
+        const plans = subscriptions.getPlans();
+        const userSubs = await subscriptions.getUserSubscriptions(userId);
+        return {
+          plans: plans.map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            amount: p.amount,
+            interval: p.interval,
+            features: p.features,
+          })),
+          active_subscriptions: userSubs.map((s) => ({
+            id: s.id,
+            plan_name: s.plan_name,
+            amount: s.amount,
+            interval: s.interval,
+            status: s.status,
+            next_payment_at: s.next_payment_at,
+          })),
+        };
+      }
+
+      case "manage_subscription": {
+        const action = toolInput.action as string;
+
+        if (action === "subscribe") {
+          const planId = toolInput.plan_id as string;
+          if (!planId) return { error: "plan_id is required for subscribe" };
+
+          const plan = subscriptions.getPlanById(planId);
+          if (!plan) return { error: `Plan not found: ${planId}` };
+
+          const agent = await agents.getAgentBySlug("subscription-manager");
+          if (!agent) return { error: "Subscription agent not available" };
+
+          const sub = await subscriptions.createSubscription({
+            userId,
+            agentId: agent.id,
+            planId,
+          });
+
+          return {
+            action: "confirm_subscription",
+            subscription_id: sub.id,
+            plan_name: plan.name,
+            amount: plan.amount,
+            interval: plan.interval,
+            next_payment_at: sub.next_payment_at,
+            agent_name: agent.name,
+            agent_wallet: agent.wallet_address,
+          };
+        }
+
+        if (action === "cancel" || action === "pause") {
+          const subId = toolInput.subscription_id as string;
+          if (!subId) return { error: "subscription_id is required" };
+
+          const newStatus = action === "cancel" ? "cancelled" : "paused";
+          await subscriptions.updateSubscriptionStatus(subId, newStatus);
+          return { success: true, action, subscription_id: subId, new_status: newStatus };
+        }
+
+        return { error: `Unknown action: ${action}` };
+      }
+
+      case "get_agent_activity": {
+        const limit = (toolInput.limit as number) ?? 10;
+        const transfers = await agentTransfers.getRecentTransfers(limit);
+        return {
+          transfers: transfers.map((t) => ({
+            id: t.id,
+            type: t.transfer_type,
+            amount: t.amount,
+            tx_hash: t.tx_hash,
+            memo: t.memo,
+            from_agent: t.from_agent?.name ?? null,
+            to_agent: t.to_agent?.name ?? null,
+            created_at: t.created_at,
           })),
         };
       }
