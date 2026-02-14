@@ -95,7 +95,7 @@ function FeedItem({ item }: { item: ActivityItem }) {
           </span>
           {item.tx_hash && (
             <a
-              href={`https://explore.tempo.xyz/tx/${item.tx_hash}`}
+              href={`https://explore.moderato.tempo.xyz/tx/${item.tx_hash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"

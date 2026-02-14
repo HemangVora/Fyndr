@@ -82,7 +82,7 @@ export function SettleUpDialog({
       const provider = await wallet.getEthereumProvider();
       const client = createWalletClient({
         account: wallet.address as Address,
-        chain: tempo({ feeToken: alphaUsd }),
+        chain: tempoModerato({ feeToken: alphaUsd }),
         transport: custom(provider),
       })
         .extend(walletActions)
@@ -172,7 +172,7 @@ export function SettleUpDialog({
                 </p>
               </div>
               <a
-                href={`https://explore.tempo.xyz/tx/${txHash}`}
+                href={`https://explore.moderato.tempo.xyz/tx/${txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
