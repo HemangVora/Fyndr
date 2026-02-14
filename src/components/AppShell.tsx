@@ -110,6 +110,7 @@ export function AppShell({ user, loading }: AppShellProps) {
             onSwitchToGroups={() => {
               setActiveTab("groups");
               setSelectedGroupId(null);
+              refetchGroups();
             }}
           />
         )}
@@ -157,6 +158,7 @@ export function AppShell({ user, loading }: AppShellProps) {
           onClick={() => {
             setActiveTab("groups");
             setSelectedGroupId(null);
+            refetchGroups();
           }}
         />
         <NavButton

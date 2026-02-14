@@ -10,6 +10,7 @@ import {
   DollarSign,
   ArrowRightLeft,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 
 interface ChatInterfaceProps {
@@ -50,7 +51,7 @@ export function ChatInterface({
   userName,
   onSwitchToGroups,
 }: ChatInterfaceProps) {
-  const { messages, isStreaming, sendMessage } = useChat(userId);
+  const { messages, isStreaming, loaded, sendMessage } = useChat(userId);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
@@ -61,6 +62,15 @@ export function ChatInterface({
   }, [messages]);
 
   const hasMessages = messages.length > 0;
+
+  if (!loaded) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading chat...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">

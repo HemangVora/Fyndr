@@ -81,7 +81,18 @@ CREATE TABLE activity_feed (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Chat messages table (per-user persistent chat history)
+CREATE TABLE chat_messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL DEFAULT '',
+  tool_results JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes for performance
+CREATE INDEX idx_chat_messages_user ON chat_messages(user_id, created_at DESC);
 CREATE INDEX idx_group_members_group ON group_members(group_id);
 CREATE INDEX idx_group_members_user ON group_members(user_id);
 CREATE INDEX idx_expenses_group ON expenses(group_id);
@@ -108,3 +119,5 @@ CREATE POLICY "Allow all for expenses" ON expenses FOR ALL USING (true) WITH CHE
 CREATE POLICY "Allow all for expense_splits" ON expense_splits FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for settlements" ON settlements FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for activity_feed" ON activity_feed FOR ALL USING (true) WITH CHECK (true);
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all for chat_messages" ON chat_messages FOR ALL USING (true) WITH CHECK (true);
