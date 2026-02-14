@@ -15,7 +15,9 @@ import {
   Loader2,
   ArrowUpRight,
   ArrowDownLeft,
+  ScanLine,
 } from "lucide-react";
+import { QRScanner } from "@/components/QRScanner";
 import { Button } from "@/components/ui/button";
 
 type PaymentView = "home" | "send" | "receive" | "request";
@@ -214,6 +216,7 @@ function SendView({ onBack }: { onBack: () => void }) {
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
+  const [showScanner, setShowScanner] = useState(false);
   const { send, isSending, error, txHash, reset } = useSend();
 
   const handleSend = async () => {
@@ -252,18 +255,37 @@ function SendView({ onBack }: { onBack: () => void }) {
     <div className="space-y-4">
       <h3 className="text-base font-semibold">Send Payment</h3>
 
+      {showScanner && (
+        <QRScanner
+          onScan={(value) => {
+            setRecipient(value);
+            setShowScanner(false);
+          }}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
       <div className="space-y-3">
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">
             Recipient
           </label>
-          <input
-            type="text"
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            placeholder="Email, phone, or 0x address"
-            className="w-full bg-secondary/50 rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="Email, phone, or 0x address"
+              className="flex-1 bg-secondary/50 rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+            <button
+              onClick={() => setShowScanner(true)}
+              className="flex items-center justify-center h-10 w-10 rounded-lg bg-secondary/50 hover:bg-secondary/80 border border-border/30 transition-colors"
+              title="Scan QR code"
+            >
+              <ScanLine className="h-4.5 w-4.5 text-muted-foreground" />
+            </button>
+          </div>
         </div>
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">
