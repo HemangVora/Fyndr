@@ -1,6 +1,7 @@
-import { alphaUsd, tempoModerato } from "@/constants";
-import { toViemAccount, useWallets } from "@privy-io/react-auth";
+import { alphaUsd } from "@/constants";
+import { useWallets } from "@privy-io/react-auth";
 import { useState } from "react";
+import { tempo } from "tempo.ts/chains";
 import { tempoActions } from "tempo.ts/viem";
 import {
   createWalletClient,
@@ -35,7 +36,7 @@ export function useSend() {
       const provider = await wallet.getEthereumProvider();
       const client = createWalletClient({
         account: wallet.address as Address,
-        chain: tempoModerato({ feeToken: alphaUsd }),
+        chain: tempo({ feeToken: alphaUsd }),
         transport: custom(provider),
       })
         .extend(walletActions)
@@ -50,6 +51,7 @@ export function useSend() {
         amount: parseUnits(amount, metadata.decimals),
         memo: stringToHex(memo || to),
         token: alphaUsd,
+        feePayer: true,
       });
 
       setTxHash(receipt.transactionHash);

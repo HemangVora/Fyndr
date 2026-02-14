@@ -3,9 +3,10 @@
 import { PrivyProvider as BasePrivyProvider } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { alphaUsd, tempoModerato } from "@/constants";
+import { alphaUsd } from "@/constants";
+import { tempo as tempoChain } from "tempo.ts/chains";
 
-const tempo = tempoModerato({
+const tempoNetwork = tempoChain({
   feeToken: alphaUsd,
 });
 
@@ -17,8 +18,8 @@ export function PrivyProvider({ children }: { children: React.ReactNode }) {
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? ""}
       config={{
         loginMethods: ["email", "sms", "wallet"],
-        defaultChain: tempo,
-        supportedChains: [tempo],
+        defaultChain: tempoNetwork,
+        supportedChains: [tempoNetwork],
         appearance: {
           theme: "dark",
         },

@@ -14,8 +14,8 @@ const anthropic = new Anthropic({
 });
 
 const privy = new PrivyClient({
-  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
-  appSecret: process.env.PRIVY_APP_SECRET ?? "",
+  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+  appSecret: process.env.PRIVY_APP_SECRET!,
 });
 
 const MAX_ITERATIONS = 5;

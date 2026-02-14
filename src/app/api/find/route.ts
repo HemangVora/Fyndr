@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
 
 const privy = new PrivyClient({
-  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
-  appSecret: process.env.PRIVY_APP_SECRET ?? "",
+  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+  appSecret: process.env.PRIVY_APP_SECRET!,
 });
 
 const findSchema = z.object({
