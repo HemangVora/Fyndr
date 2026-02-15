@@ -17,8 +17,8 @@ export function useSend() {
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
-  const send = async (to: string, amount: string, memo: string = "") => {
-    if (isSending) return;
+  const send = async (to: string, amount: string, memo: string = ""): Promise<string> => {
+    if (isSending) throw new Error("Transaction already in progress");
     setIsSending(true);
     setError(null);
     setTxHash(null);
@@ -53,7 +53,9 @@ export function useSend() {
         feePayer: true,
       });
 
-      setTxHash(receipt.transactionHash);
+      const hash = receipt.transactionHash;
+      setTxHash(hash);
+      return hash;
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to send";

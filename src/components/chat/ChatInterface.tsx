@@ -87,13 +87,11 @@ export function ChatInterface({
   const handlePaymentConfirm = useCallback(
     async (to: string, amount: string, memo: string): Promise<string | null> => {
       try {
-        await send(to, amount, memo);
-        // useSend sets txHash internally, but we need to return it
-        // Since send throws on error, reaching here means success
-        // We'll return a placeholder — the actual hash is shown by useSend
-        return "confirmed";
-      } catch {
-        return null;
+        const hash = await send(to, amount, memo);
+        return hash;
+      } catch (err) {
+        // Re-throw so PaymentConfirmCard can show the actual error
+        throw err;
       }
     },
     [send]
