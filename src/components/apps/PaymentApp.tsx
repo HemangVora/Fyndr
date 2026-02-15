@@ -167,8 +167,11 @@ function PaymentHome({
         ) : (
           <div className="space-y-1">
             {transactions.slice(0, 8).map((tx) => (
-              <div
+              <a
                 key={tx.hash}
+                href={`https://explore.moderato.tempo.xyz/tx/${tx.hash}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-secondary/30 transition-colors"
               >
                 <div className="flex items-center gap-3">
@@ -195,16 +198,19 @@ function PaymentHome({
                     </p>
                   </div>
                 </div>
-                <span
-                  className={`text-sm font-medium ${
-                    tx.type === "send"
-                      ? "text-muted-foreground"
-                      : "text-green-400"
-                  }`}
-                >
-                  {tx.type === "send" ? "-" : "+"}${tx.amount}
-                </span>
-              </div>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`text-sm font-medium ${
+                      tx.type === "send"
+                        ? "text-muted-foreground"
+                        : "text-green-400"
+                    }`}
+                  >
+                    {tx.type === "send" ? "-" : "+"}${tx.amount}
+                  </span>
+                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                </div>
+              </a>
             ))}
           </div>
         )}
