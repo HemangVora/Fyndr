@@ -1,0 +1,2 @@
+patchedDependencies:
+  tempo.ts@0.10.5: patches/tempo.ts@0.10.5.patch
