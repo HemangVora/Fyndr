@@ -26,7 +26,10 @@ import {
   CreditCard,
   RefreshCw,
   Zap,
+  ExternalLink,
 } from "lucide-react";
+
+const EXPLORER_URL = "https://explore.moderato.tempo.xyz/tx";
 
 interface ToolResultCardProps {
   toolResult: ToolResult;
@@ -274,9 +277,15 @@ function PaymentConfirmCard({
         <div className="mt-3 py-2 text-center">
           <p className="text-xs text-green-400 font-medium">Payment sent!</p>
           {txHash && (
-            <p className="text-[10px] text-muted-foreground font-mono mt-1">
+            <a
+              href={`${EXPLORER_URL}/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline font-mono mt-1"
+            >
               {txHash.slice(0, 10)}...{txHash.slice(-8)}
-            </p>
+              <ExternalLink className="h-2.5 w-2.5" />
+            </a>
           )}
         </div>
       )}
@@ -429,9 +438,15 @@ function OrderConfirmCard({
         <div className="mt-3 py-2 text-center">
           <p className="text-xs text-green-400 font-medium">Order Confirmed!</p>
           {txHash && (
-            <p className="text-[10px] text-muted-foreground font-mono mt-1">
+            <a
+              href={`${EXPLORER_URL}/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline font-mono mt-1"
+            >
               {txHash.slice(0, 10)}...{txHash.slice(-8)}
-            </p>
+              <ExternalLink className="h-2.5 w-2.5" />
+            </a>
           )}
           <p className="text-[10px] text-muted-foreground mt-1">
             Estimated delivery: ~45 min
@@ -541,9 +556,15 @@ function SubscriptionConfirmCard({
         <div className="mt-3 py-2 text-center">
           <p className="text-xs text-purple-400 font-medium">Subscribed!</p>
           {txHash && (
-            <p className="text-[10px] text-muted-foreground font-mono mt-1">
+            <a
+              href={`${EXPLORER_URL}/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline font-mono mt-1"
+            >
               {txHash.slice(0, 10)}...{txHash.slice(-8)}
-            </p>
+              <ExternalLink className="h-2.5 w-2.5" />
+            </a>
           )}
           <p className="text-[10px] text-muted-foreground mt-1">
             Next payment: {new Date(result.next_payment_at as string).toLocaleDateString()}

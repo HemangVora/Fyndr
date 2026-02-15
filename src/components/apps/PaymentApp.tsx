@@ -16,6 +16,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   ScanLine,
+  ExternalLink,
 } from "lucide-react";
 import { QRScanner } from "@/components/QRScanner";
 import { Button } from "@/components/ui/button";
@@ -236,9 +237,15 @@ function SendView({ onBack }: { onBack: () => void }) {
         </div>
         <div>
           <p className="text-sm font-medium">Payment Sent!</p>
-          <p className="text-xs text-muted-foreground font-mono mt-2">
+          <a
+            href={`https://explore.moderato.tempo.xyz/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-mono mt-2"
+          >
             {txHash.slice(0, 12)}...{txHash.slice(-8)}
-          </p>
+            <ExternalLink className="h-3 w-3" />
+          </a>
         </div>
         <Button
           onClick={() => { reset(); onBack(); }}

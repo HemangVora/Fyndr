@@ -60,12 +60,15 @@ export function SendModal({
             <p className="text-sm" style={{ color: "var(--text-primary)" }}>
               Transaction sent successfully!
             </p>
-            <p
-              className="text-xs font-mono break-all"
-              style={{ color: "var(--text-secondary)" }}
+            <a
+              href={`https://explore.moderato.tempo.xyz/tx/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-mono break-all underline"
+              style={{ color: "var(--text-primary)" }}
             >
-              {txHash.slice(0, 10)}...{txHash.slice(-8)}
-            </p>
+              {txHash.slice(0, 10)}...{txHash.slice(-8)} ↗
+            </a>
             <LiquidGlassButton
               onClick={onClose}
               fullWidth

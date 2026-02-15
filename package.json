@@ -32,8 +32,13 @@
     "tailwind-merge": "^3.4.0",
     "tempo.ts": "^0.10.5",
     "uuid": "^13.0.0",
-    "viem": "^2.41.2",
+    "viem": "^2.43.1",
     "zod": "^4.1.13"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "tempo.ts@0.10.5": "patches/tempo.ts@0.10.5.patch"
+    }
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

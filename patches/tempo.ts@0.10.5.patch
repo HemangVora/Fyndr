@@ -1,0 +1,13 @@
+diff --git a/dist/ox/TransactionRequest.js b/dist/ox/TransactionRequest.js
+index 10f919610097ae94f57466bde7e2e968eefa59eb..fc84199fec4e4cd498de4d054de32882f58b954a 100644
+--- a/dist/ox/TransactionRequest.js
++++ b/dist/ox/TransactionRequest.js
+@@ -57,7 +57,7 @@ export function toRpc(request) {
+     if (request.calls)
+         request_rpc.calls = request.calls.map((call) => ({
+             to: call.to ?? '0x',
+-            value: call.value ? Hex.fromNumber(call.value) : '0x',
++            value: (call.value && call.value !== '0x' && call.value !== 0n) ? Hex.fromNumber(call.value) : '0x',
+             data: call.data ?? '0x',
+         }));
+     if (typeof request.feeToken !== 'undefined')
