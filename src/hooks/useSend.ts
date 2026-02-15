@@ -77,6 +77,11 @@ export function useSend() {
 }
 
 async function getAddress(to: string): Promise<Address> {
+  // If already a wallet address, return directly
+  if (to.startsWith("0x") && to.length === 42) {
+    return to as Address;
+  }
+
   const res = await fetch("/api/find", {
     method: "POST",
     headers: {
@@ -86,7 +91,10 @@ async function getAddress(to: string): Promise<Address> {
   });
 
   if (!res.ok) {
-    throw new Error("Failed to find user");
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      err.error || "User not found. They need to sign up for Fyndr first."
+    );
   }
 
   const data = (await res.json()) as { address: Address };
