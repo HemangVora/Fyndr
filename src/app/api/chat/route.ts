@@ -1057,10 +1057,10 @@ export async function POST(request: NextRequest) {
 
         return {
           role: m.role as "user" | "assistant",
-          content: m.content,
+          content: m.content || (m.role === "user" ? "..." : "OK"),
         };
       }
-    );
+    ).filter((m) => m.content);
 
     const stream = new ReadableStream({
       async start(controller) {
