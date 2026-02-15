@@ -160,7 +160,7 @@ export function AgentMarketplace({ onChatWithAgent }: AgentMarketplaceProps) {
                 <span className="text-xs font-medium shrink-0">${t.amount.toFixed(2)}</span>
                 {t.tx_hash && (
                   <a
-                    href={`https://explore.tempo.xyz/tx/${t.tx_hash}`}
+                    href={`https://explore.moderato.tempo.xyz/tx/${t.tx_hash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary"

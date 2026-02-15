@@ -1,7 +1,6 @@
-import { alphaUsd } from "@/constants";
+import { alphaUsd, tempoModerato } from "@/constants";
 import { useEffect, useRef, useState } from "react";
 import { useWallets } from "@privy-io/react-auth";
-import { tempo } from "tempo.ts/chains";
 import { tempoActions } from "tempo.ts/viem";
 import {
   createWalletClient,
@@ -33,7 +32,7 @@ export function useBalance(address: string | undefined) {
         const provider = await wallet.getEthereumProvider();
         const client = createWalletClient({
           account: wallet.address as Address,
-          chain: tempo({ feeToken: alphaUsd }),
+          chain: tempoModerato({ feeToken: alphaUsd }),
           transport: custom(provider),
         }).extend(tempoActions());
 

@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       success: true,
       address: wallet.address,
       identifier,
-      identifierType: identifier.includes("@") ? "email" : "phone",
+      identifierType: getIdentifierType(identifier),
       userId: user.id,
     });
   } catch (error) {
@@ -49,10 +49,30 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Detect identifier type
+function getIdentifierType(identifier: string): "wallet" | "email" | "phone" {
+  if (identifier.startsWith("0x") && identifier.length === 42) return "wallet";
+  if (identifier.includes("@")) return "email";
+  return "phone";
+}
+
 // Get a user by phone number or email by querying Privy's user management API
 // If a user doesn't exist, a new user will be created.
+// Wallet addresses are returned directly without Privy lookup.
 async function getUser(identifier: string) {
-  if (!identifier.includes("@")) {
+  const idType = getIdentifierType(identifier);
+
+  // Wallet addresses don't need Privy lookup — return a minimal object
+  if (idType === "wallet") {
+    return {
+      id: identifier,
+      linked_accounts: [
+        { type: "wallet" as const, chain_type: "ethereum" as const, address: identifier },
+      ],
+    };
+  }
+
+  if (idType === "phone") {
     const user = await privy
       .users()
       .getByPhoneNumber({ number: identifier })

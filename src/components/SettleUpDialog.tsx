@@ -24,9 +24,8 @@ import {
   type SettlementPlan,
 } from "@/services/settlement";
 import type { BalanceInput } from "@/services/debtSimplifier";
-import { alphaUsd } from "@/constants";
+import { alphaUsd, tempoModerato } from "@/constants";
 import { useWallets } from "@privy-io/react-auth";
-import { tempo } from "tempo.ts/chains";
 import { tempoActions } from "tempo.ts/viem";
 import {
   createWalletClient,
@@ -83,7 +82,7 @@ export function SettleUpDialog({
       const provider = await wallet.getEthereumProvider();
       const client = createWalletClient({
         account: wallet.address as Address,
-        chain: tempo({ feeToken: alphaUsd }),
+        chain: tempoModerato({ feeToken: alphaUsd }),
         transport: custom(provider),
       })
         .extend(walletActions)
@@ -174,7 +173,7 @@ export function SettleUpDialog({
                 </p>
               </div>
               <a
-                href={`https://explore.tempo.xyz/tx/${txHash}`}
+                href={`https://explore.moderato.tempo.xyz/tx/${txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"

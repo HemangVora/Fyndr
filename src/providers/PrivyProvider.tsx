@@ -3,10 +3,9 @@
 import { PrivyProvider as BasePrivyProvider } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { alphaUsd } from "@/constants";
-import { tempo as tempoChain } from "tempo.ts/chains";
+import { alphaUsd, tempoModerato } from "@/constants";
 
-const tempoNetwork = tempoChain({
+const tempoNetwork = tempoModerato({
   feeToken: alphaUsd,
 });
 
