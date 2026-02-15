@@ -151,25 +151,31 @@ export async function addMemberByIdentifier(
     return { user: existing, isNew: false };
   }
 
-  // Use Privy to create/find the user, then add to group
-  // Call our API endpoint which handles Privy user creation
+  // Look up user in Privy (do NOT create — they must sign up first)
   const findRes = await fetch("/api/find", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identifier }),
   });
 
-  if (!findRes.ok) throw new Error("Failed to find or create user via Privy");
+  if (!findRes.ok) {
+    const err = await findRes.json().catch(() => ({}));
+    throw new Error(
+      err.error || "User not found. They need to sign up for Fyndr first."
+    );
+  }
 
   const findData = await findRes.json();
+  const privyId = findData.userId;
+  const walletAddr = findData.address?.toLowerCase() ?? "";
 
-  // Create user in our DB
+  // Upsert into our DB using privy_id as the conflict key
   const { data: newUser, error } = await supabase
     .from("users")
     .upsert(
       {
-        privy_id: findData.userId ?? `privy-${Date.now()}`,
-        wallet_address: findData.address,
+        privy_id: privyId,
+        wallet_address: walletAddr,
         email: identifier.includes("@") ? identifier : null,
         phone:
           identifier.startsWith("+") || /^\d+$/.test(identifier)
@@ -177,11 +183,10 @@ export async function addMemberByIdentifier(
             : null,
         display_name: identifier,
       },
-      { onConflict: "wallet_address" }
+      { onConflict: "privy_id" }
     )
     .select("*")
     .single();
-
   if (error) throw new Error(`Failed to create user: ${error.message}`);
 
   await addMember(groupId, newUser.id);

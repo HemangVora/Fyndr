@@ -11,13 +11,54 @@ interface UpsertUserParams {
 
 export async function upsertUser(params: UpsertUserParams): Promise<User> {
   const { privyId, walletAddress, email, phone, displayName } = params;
+  const lowerWallet = walletAddress.toLowerCase();
 
+  // First, check if a user already exists by email or phone.
+  // This handles the case where a user was added to a group (creating a Supabase
+  // record with one privy_id) and later logs in (possibly with a different privy_id).
+  // By matching on email/phone first, we preserve the same UUID and group memberships.
+  let existing: User | null = null;
+  if (email) {
+    const { data } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", email)
+      .single();
+    existing = data as User | null;
+  }
+  if (!existing && phone) {
+    const { data } = await supabase
+      .from("users")
+      .select("*")
+      .eq("phone", phone)
+      .single();
+    existing = data as User | null;
+  }
+
+  if (existing) {
+    // Update the existing record with current privy_id and wallet
+    const { data, error } = await supabase
+      .from("users")
+      .update({
+        privy_id: privyId,
+        wallet_address: lowerWallet,
+        display_name: displayName ?? existing.display_name,
+      })
+      .eq("id", existing.id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update user: ${error.message}`);
+    return data as User;
+  }
+
+  // No existing user by email/phone — upsert by privy_id
   const { data, error } = await supabase
     .from("users")
     .upsert(
       {
         privy_id: privyId,
-        wallet_address: walletAddress.toLowerCase(),
+        wallet_address: lowerWallet,
         email: email ?? null,
         phone: phone ?? null,
         display_name: displayName ?? email ?? phone ?? walletAddress.slice(0, 8),

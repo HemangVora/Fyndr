@@ -430,43 +430,38 @@ async function executeTool(
         let user = await userService.searchUserByIdentifier(identifier);
 
         if (!user) {
-          // Use Privy to find or create the user
-          let privyUser;
+          // Check Privy to see if the user has ever signed up
+          let privyUser = null;
           if (identifier.includes("@")) {
             privyUser = await privy
               .users()
               .getByEmailAddress({ address: identifier })
               .catch(() => null);
-            if (!privyUser) {
-              privyUser = await privy.users().create({
-                linked_accounts: [{ type: "email", address: identifier }],
-                wallets: [{ chain_type: "ethereum" }],
-              });
-            }
           } else {
             privyUser = await privy
               .users()
               .getByPhoneNumber({ number: identifier })
               .catch(() => null);
-            if (!privyUser) {
-              privyUser = await privy.users().create({
-                linked_accounts: [{ type: "phone", number: identifier }],
-                wallets: [{ chain_type: "ethereum" }],
-              });
-            }
           }
 
+          if (!privyUser) {
+            // User has never signed up — don't create a new account
+            return {
+              error: `User "${identifier}" hasn't joined Fyndr yet. Ask them to sign up first, then try adding them again.`,
+            };
+          }
+
+          // User exists in Privy but not in our DB — sync them
           const wallet = privyUser.linked_accounts?.find(
             (a) => a.type === "wallet" && a.chain_type === "ethereum"
           );
 
-          // Upsert into our DB
-          const { data: newUser, error } = await supabase
+          const { data: created, error: createErr } = await supabase
             .from("users")
             .upsert(
               {
                 privy_id: privyUser.id,
-                wallet_address: wallet?.address ?? "",
+                wallet_address: wallet?.address?.toLowerCase() ?? "",
                 email: identifier.includes("@") ? identifier : null,
                 phone: !identifier.includes("@") ? identifier : null,
                 display_name: identifier,
@@ -475,9 +470,9 @@ async function executeTool(
             )
             .select("*")
             .single();
-
-          if (error) throw new Error(`Failed to create user: ${error.message}`);
-          user = newUser;
+          if (createErr)
+            throw new Error(`Failed to create user: ${createErr.message}`);
+          user = created;
         }
 
         await groups.addMember(groupId, user!.id);
@@ -1060,7 +1055,7 @@ export async function POST(request: NextRequest) {
           content: m.content || (m.role === "user" ? "..." : "OK"),
         };
       }
-    ).filter((m) => m.content);
+    ).filter((m: { role: string; content: string }) => m.content);
 
     const stream = new ReadableStream({
       async start(controller) {

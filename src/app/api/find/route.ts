@@ -17,8 +17,15 @@ export async function POST(request: NextRequest) {
     const payload = findSchema.parse(body);
     const { identifier } = payload;
 
-    // Get or create user
-    const user = await getUser(identifier);
+    // Look up user (do NOT create — wait for them to sign up)
+    const user = await findUser(identifier);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found. They need to sign up for Fyndr first." },
+        { status: 404 }
+      );
+    }
 
     // Get user's wallet
     const wallet = user.linked_accounts?.find(
@@ -56,10 +63,9 @@ function getIdentifierType(identifier: string): "wallet" | "email" | "phone" {
   return "phone";
 }
 
-// Get a user by phone number or email by querying Privy's user management API
-// If a user doesn't exist, a new user will be created.
-// Wallet addresses are returned directly without Privy lookup.
-async function getUser(identifier: string) {
+// Find a user by phone number, email, or wallet address via Privy.
+// Does NOT create new users — they must sign up themselves.
+async function findUser(identifier: string) {
   const idType = getIdentifierType(identifier);
 
   // Wallet addresses don't need Privy lookup — return a minimal object
@@ -73,26 +79,14 @@ async function getUser(identifier: string) {
   }
 
   if (idType === "phone") {
-    const user = await privy
+    return privy
       .users()
       .getByPhoneNumber({ number: identifier })
       .catch(() => null);
-    if (user) return user;
-
-    return privy.users().create({
-      linked_accounts: [{ type: "phone", number: identifier }],
-      wallets: [{ chain_type: "ethereum" }],
-    });
   } else {
-    const user = await privy
+    return privy
       .users()
       .getByEmailAddress({ address: identifier })
       .catch(() => null);
-    if (user) return user;
-
-    return privy.users().create({
-      linked_accounts: [{ type: "email", address: identifier }],
-      wallets: [{ chain_type: "ethereum" }],
-    });
   }
 }
