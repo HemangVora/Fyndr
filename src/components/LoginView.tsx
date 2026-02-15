@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
-import { Receipt, Zap, Users } from "lucide-react";
+import { Bot, Zap, ShoppingCart, CreditCard } from "lucide-react";
 
 interface LoginViewProps {
   onLogin: () => void;
@@ -24,31 +24,31 @@ export function LoginView({ onLogin }: LoginViewProps) {
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div className="w-16 h-16 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center">
-            <Receipt className="w-8 h-8 text-primary" />
+            <Bot className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            SplitPay
+            Fyndr
           </h1>
           <p className="text-center text-sm text-muted-foreground leading-relaxed">
-            Split bills with friends. Settle up instantly.
+            Your AI payment agent. Shop, split, and subscribe
             <br />
-            No crypto knowledge needed.
+            — all on-chain.
           </p>
         </div>
 
         {/* Features */}
         <div className="w-full space-y-3">
           <Feature
-            icon={<Users className="w-4 h-4" />}
-            text="Add friends by email or phone"
+            icon={<ShoppingCart className="w-4 h-4" />}
+            text="Shop with AI agents and pay on-chain"
           />
           <Feature
-            icon={<Receipt className="w-4 h-4" />}
-            text="AI scans receipts and splits bills"
+            icon={<CreditCard className="w-4 h-4" />}
+            text="Subscribe to services with recurring payments"
           />
           <Feature
             icon={<Zap className="w-4 h-4" />}
-            text="Settle up in under 1 second"
+            text="Instant settlements on Tempo blockchain"
           />
         </div>
 
@@ -62,7 +62,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
         </Button>
 
         <p className="text-xs text-muted-foreground text-center">
-          Powered by Tempo &middot; Instant stablecoin payments
+          Powered by Tempo &middot; Agentic commerce on-chain
         </p>
       </motion.div>
     </motion.div>
