@@ -48,7 +48,7 @@ export function useSend() {
       const { receipt } = await client.token.transferSync({
         to: recipient,
         amount: parseUnits(amount, metadata.decimals),
-        memo: stringToHex(memo || to),
+        memo: stringToHex((memo || "payment").slice(0, 31)),
         token: alphaUsd,
         feePayer: true,
       });
