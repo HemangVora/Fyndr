@@ -21,6 +21,7 @@ import {
 interface ChatInterfaceProps {
   userId: string;
   userName: string;
+  walletAddress?: string;
   onSwitchToGroups?: () => void;
   onSwitchToPayment?: () => void;
 }
@@ -67,10 +68,11 @@ const QUICK_ACTIONS = [
 export function ChatInterface({
   userId,
   userName,
+  walletAddress,
   onSwitchToGroups,
   onSwitchToPayment,
 }: ChatInterfaceProps) {
-  const { messages, isStreaming, loaded, sendMessage } = useChat(userId);
+  const { messages, isStreaming, loaded, sendMessage } = useChat(userId, walletAddress);
   const { send } = useSend();
   const scrollRef = useRef<HTMLDivElement>(null);
 

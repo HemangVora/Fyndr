@@ -34,8 +34,8 @@ interface AppShellProps {
 export function AppShell({ user, loading }: AppShellProps) {
   const [activeTab, setActiveTab] = useState<Tab>("chat");
   const { logout } = usePrivy();
-  const { refreshUser } = useCurrentUser();
-  const walletAddress = user?.wallet_address ?? "";
+  const { refreshUser, walletAddress: privyWallet } = useCurrentUser();
+  const walletAddress = privyWallet ?? user?.wallet_address ?? "";
   const { balance, loading: balanceLoading } = useBalance(walletAddress);
   const { groups, loading: groupsLoading, refetch: refetchGroups } = useGroups(user?.id);
 
@@ -103,6 +103,7 @@ export function AppShell({ user, loading }: AppShellProps) {
           <ChatInterface
             userId={user.id}
             userName={user.display_name ?? user.email ?? "there"}
+            walletAddress={walletAddress}
             onSwitchToGroups={() => {
               setActiveTab("apps");
               refetchGroups();

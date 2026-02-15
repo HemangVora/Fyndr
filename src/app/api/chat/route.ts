@@ -389,7 +389,8 @@ async function executeTool(
   toolInput: Record<string, unknown>,
   userId: string,
   imageBase64?: string,
-  imageMediaType?: string
+  imageMediaType?: string,
+  clientWallet?: string
 ): Promise<Record<string, unknown>> {
   try {
     switch (toolName) {
@@ -797,7 +798,7 @@ Rules: price = total for that line. If tax/tip/subtotal not visible, set null. t
 
         return {
           action: "show_wallet_qr",
-          wallet_address: dbUser.wallet_address,
+          wallet_address: clientWallet || dbUser.wallet_address,
           display_name: dbUser.display_name,
         };
       }
@@ -999,7 +1000,7 @@ function sendSSE(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { messages, userId } = body;
+    const { messages, userId, walletAddress: clientWallet } = body;
 
     if (!userId) {
       return new Response(JSON.stringify({ error: "userId required" }), {
@@ -1094,7 +1095,8 @@ export async function POST(request: NextRequest) {
                   block.input as Record<string, unknown>,
                   userId,
                   imageBase64,
-                  imageMediaType
+                  imageMediaType,
+                  clientWallet
                 );
 
                 const isError = "error" in result;

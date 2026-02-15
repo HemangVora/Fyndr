@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import type { ChatMessage, ToolResult } from "@/types/chat";
 
-export function useChat(userId: string | undefined) {
+export function useChat(userId: string | undefined, walletAddress?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -178,7 +178,7 @@ export function useChat(userId: string | undefined) {
         const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: payload, userId }),
+          body: JSON.stringify({ messages: payload, userId, walletAddress }),
           signal: abortController.signal,
         });
 
